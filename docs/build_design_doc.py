@@ -1,15 +1,17 @@
 """Build docs/Weasley_Clock_Design.pdf (run from the repo root: python docs/build_design_doc.py)."""
+from PIL import Image as PILImage
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import (Image, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate,
-                                Spacer, Table, TableStyle)
-from PIL import Image as PILImage
+from reportlab.platypus import Image, KeepTogether, Paragraph, SimpleDocTemplate, Table, TableStyle
 
 REPO = "https://github.com/Austin-Hunter1/HunterClock"
 VIEWER = "https://claude.ai/artifact/VGXRxYqbKpFKdoPEkXQQYK"
+PLAN = "https://claude.ai/artifact/7U4RLGXsm4w6TAcJvgQopS"
+CIRCUIT = "https://claude.ai/artifact/6CB7icqFPn5Q8jYG5KjDA8"
+CHECKLIST = "https://claude.ai/artifact/RxCKqw6WKXXkBbC6VEKhYf"
 
 INK = colors.HexColor("#2B2419")
 MUTED = colors.HexColor("#7A6E5C")
@@ -63,124 +65,144 @@ def footer(canvas, doc):
     canvas.restoreState()
 
 
+def person(n):
+    return f'<font color="{PERSON[n]}"><b>{n}</b></font>'
+
+
 story = []
 W = letter[0] - 1.6 * inch
 
 # ---------------------------------------------------------------- cover block
 story += [Paragraph("The Weasley Clock", title),
-          Paragraph("Design notes for the family build: what it does, how it is put together, what is decided and what is still open.", sub)]
+          Paragraph("Design notes for the family build: where the idea comes from, how it is put together, and what is left to do.", sub)]
 story.append(table([
-    ["3D model (interactive)", link(VIEWER, "Open the viewer")],
-    ["Source code and CAD files", link(REPO)],
-    ["CAD build", f'{link(REPO + "/actions", "GitHub Actions")}: run "Build CAD", download the weasley-clock-cad artifact (STEP, STL, GLB)'],
-], [1.6 * inch, W - 1.6 * inch], head=False))
-story.append(Paragraph("The repository is private and the viewer link opens only for people it has been shared with. Austin needs to add each brother as a collaborator on GitHub and share the viewer from its Share menu.", small))
+    ["Hardware plan", link(PLAN, "Weasley Clock Hardware Plan") + " (architecture, parts, costs, build phases)"],
+    ["Order checklist", link(CHECKLIST, "Weasley Clock Order Checklist")],
+    ["Circuit diagram", link(CIRCUIT, "Weasley Clock Circuit Diagram") + " (pin-level wiring)"],
+    ["3D model (interactive)", link(VIEWER, "Weasley Clock CAD viewer") + " (still shows an earlier belt-driven motor layout; being updated to the hollow-shaft stack in section 3)"],
+    ["Code and CAD files", link(REPO)],
+], [1.5 * inch, W - 1.5 * inch], head=False))
+story.append(Paragraph("The pages and the repository are private. Austin needs to share each page from its Share menu and add each brother as a collaborator on GitHub before the links open for them.", small))
 
-# ---------------------------------------------------------------- 1 concept
-story.append(Paragraph("1. What it is", h1))
+# ---------------------------------------------------------------- 1 inspiration
+story.append(Paragraph("1. Inspiration", h1))
 story.append(Paragraph(
-    "A grandfather clock rebuilt as a family distance clock. Instead of hours and minutes, six hands, one per person, "
-    "sit on one shared hub. Each hand points to how far that person is from home (Minnetonka, MN). "
-    "12 o'clock means home. Six flanking screens show each person's name, city and distance.", body))
-story.append(img("docs/img/weasley_clock_face_and_screens.png", W * 0.6))
-story.append(Paragraph("Face and two-screen layout (mockup from visualize_two_screen_layout.py).", small))
+    "The Weasley Clock comes from the Harry Potter books. The Weasley family keeps a clock at the Burrow with no numbers on it. "
+    "Instead, each family member has a hand of their own, and the dial is marked with places and situations such as home, school, work and "
+    "travelling, down to \"mortal peril\" on the worst days. The hands move as the family moves, so anyone in the house can see where everyone is at a glance.", body))
+story.append(Paragraph(
+    "The wizarding world adds a second idea: pictures move. A portrait or a photograph is a small living loop of the person in it.", body))
+story.append(Paragraph(
+    "Our clock keeps both ideas and changes one. <b>The hands show how far each person is from home</b>, not which category they are in: 12 o'clock means home, "
+    "and the farther away someone is, the farther their hand sweeps around the dial. <b>The moving pictures sit on the outside of the clock face</b>, in "
+    "round screens beside the dial, each looping a short real video of its person. The case is our own family grandfather clock "
+    "(a Howard Miller triple-weight moon-phase model), gutted of its original movement, weights and pendulum.", body))
 
 # ---------------------------------------------------------------- 2 mapping
 story.append(Paragraph("2. How distance becomes a hand angle", h1))
 story.append(Paragraph(
     "Distance comes from the Haversine formula, clamped to a minimum of 1 km. A log<super>10</super> scale then maps it so that 1 km sits at "
     "0° (12 o'clock) and the antipode, about 20,015 km, sits at 360° (back to 12). The scale is logarithmic so a hand moves "
-    "visibly for a 30 km difference and for a 7,000 km one. The full 360° sweep is the locked design; the older 180° "
-    "version in the first sketches is superseded. The source is birthday_clock.m, and the Python scripts and CAD model use the same data.", body))
+    "visibly for a 30 km difference and for a 7,000 km one. In log space the mapping is a straight line, and each person is a vertical line at their distance. "
+    "The source is birthday_clock.m; the Python scripts and CAD model use the same data.", body))
+story.append(img("docs/img/distance_vs_angle.png", W))
+story.append(Paragraph("Hand angle against distance from home. The right axis reads the same angle as a clock time, at 30 degrees per hour.", small))
 rows = [["Person", "Location", "Distance (km)", "Hand angle"]]
 for n, c, d, a in [("Becky", "Minnetonka, MN", "1 (home)", "0.0°"), ("Elijah", "St. Paul, MN", "33", "126.8°"),
                    ("Caleb", "Wheaton, IL", "552", "229.5°"), ("Austin", "Boulder, CO", "1,107", "254.8°"),
                    ("Micah", "Corvallis, OR", "2,338", "281.9°"), ("Evan", "Warsaw, PL", "7,537", "324.5°")]:
-    rows.append([f'<font color="{PERSON[n]}"><b>{n}</b></font>', c, d, a])
+    rows.append([person(n), c, d, a])
 story.append(table(rows, [1.3 * inch, 2.0 * inch, 1.5 * inch, 1.3 * inch]))
 story.append(Paragraph("Angles are measured clockwise from 12 o'clock.", small))
 
 # ---------------------------------------------------------------- 3 mechanical
 story.append(Paragraph("3. Mechanical design", h1))
-story.append(Paragraph("The hub", h2))
+story.append(Paragraph("One hub, six hands", h2))
 story.append(Paragraph(
-    "Six hollow shafts nest inside one another on a single axis, so all six hands pivot about the same point. "
-    "The outermost shaft belongs to the shallowest hand. Each hand is mounted on the end of its own shaft, stacked a few millimetres "
-    "apart in front of the dial. Each shaft is turned by its own stepper motor.", body))
+    "All six hands pivot from one centre point, so the hands sit on concentric shafts. Six hollow-shaft stepper motors are chained nose to tail "
+    "along the depth axis behind the dial. Each motor's shaft passes through the hollow bores of the motors behind it, and a telescoping brass tube "
+    "carries it forward to its hand. The result is the single-pivot look of the show clock, with the whole trunk cavity of the case available for the stack.", body))
 story.append(img("docs/img/weasley_clock_overview.png", W))
 story.append(Paragraph("System overview and hub cross-section from the hardware plan (visualize_hardware_plan.py). "
-                       "The 180° face in the third panel is the older mapping.", small))
-story.append(Paragraph("Motors and drive", h2))
-story.append(Paragraph(
-    "Per the hardware plan, the two outer shafts use NEMA23 motors (23HS18-2004H) and the four inner shafts use NEMA17 motors (17HS13-1504H). "
-    "Solid-shaft motors cannot all sit on the clock's axis, because the inner shafts would have to pass through them. "
-    "The CAD therefore puts the six motors in a vertical column down the trunk behind the dial. Each motor belts to a pulley "
-    "on its own shaft, in its own plane, so the belts do not touch.", body))
+                       "The face in the third panel uses the older 180-degree mapping.", small))
+story.append(Paragraph("Motors and shafts", h2))
 story.append(table([
-    ["Level", "Person", "Shaft OD", "Motor", "Belt plane (behind dial)", "Motor axis (below clock axis)"],
-    ["1 (outer)", "Becky", "26 mm", "NEMA23", "55 mm", "85 mm"],
-    ["2", "Elijah", "23 mm", "NEMA23", "69 mm", "147 mm"],
-    ["3", "Caleb", "20 mm", "NEMA17", "83 mm", "209 mm"],
-    ["4", "Austin", "17 mm", "NEMA17", "97 mm", "271 mm"],
-    ["5", "Micah", "14 mm", "NEMA17", "111 mm", "333 mm"],
-    ["6 (inner)", "Evan", "11 mm", "NEMA17", "125 mm", "395 mm"],
-], [0.8 * inch, 0.8 * inch, 0.8 * inch, 0.8 * inch, 1.6 * inch, 2.1 * inch]))
-story.append(Paragraph("The person-to-level assignment is a placeholder. All sizes in this table are placeholders until parts are in hand.", small))
-story.append(img("docs/img/view_drive.jpg", W * 0.5))
-story.append(Paragraph("Drive column with the case hidden, from the 3D viewer. The two NEMA23 motors are behind the dial plate in this view.", small))
-
-# ---------------------------------------------------------------- 4 screens + case
-story.append(Paragraph("4. Screens", h1))
+    ["Level", "Hand", "Motor", "Bore / shaft OD", "Tube to the hand"],
+    ["1 (front)", f"{person('Becky')} or {person('Evan')}", "NEMA23 hollow-shaft, 23HS18-2004H", "8 mm / 12 mm", "None; the hand mounts on the motor shaft"],
+    ["2", f"{person('Evan')} or {person('Becky')}", "NEMA23 hollow-shaft, 23HS18-2004H", "8 mm / 12 mm", "9/32 in (7.1 mm) brass"],
+    ["3", person("Elijah"), "NEMA17 hollow-shaft, 17HS13-1504H", "4 mm / 8 mm", "1/4 in (6.4 mm) brass"],
+    ["4", f"{person('Caleb')}, {person('Austin')} or {person('Micah')}", "NEMA17 hollow-shaft, 17HS13-1504H", "4 mm / 8 mm", "1/8 in (3.2 mm) brass"],
+    ["5", "(same three)", "NEMA17 hollow-shaft, 17HS13-1504H", "4 mm / 8 mm", "3/32 in (2.4 mm) brass"],
+    ["6 (rear)", "(same three)", "NEMA17 hollow-shaft, 17HS13-1504H", "4 mm / 8 mm", "1/16 in (1.6 mm) brass"],
+], [0.75 * inch, 1.3 * inch, 2.0 * inch, 1.0 * inch, W - 5.05 * inch]))
 story.append(Paragraph(
-    "Six round GC9A01 displays (1.28 in, 240×240, SPI) are on order. They are mounted in two vertical panels, one on each side of the dial, "
-    "three per panel. The left panel holds the near cluster (Becky, Elijah, Caleb) and the right panel holds the far cluster "
-    "(Austin, Micah, Evan). Each screen shows the person's portrait or status, name, distance and last update. "
+    "Becky, Evan and Elijah move the most, so they get the three stiffest shafts. Tubes are K&amp;S telescoping brass. "
+    "Between tubes 3 and 4 the diameter drops by more than one standard step, because tube 4 must clear the 4 mm bore of the level 3 motor. "
+    "That one interface needs a small guide bushing; every other interface is a standard consecutive size. "
+    "Which of Becky and Evan takes level 1, and the order of Caleb, Austin and Micah, are not yet decided.", small))
+story.append(Paragraph(
+    "The estimated stack depth is 300 to 320 mm. A jam anywhere in the stack can bind every hand behind it. "
+    "We accepted that in exchange for the authentic single-pivot look.", body))
+
+# ---------------------------------------------------------------- 4 screens
+story.append(Paragraph("4. Screens and moving pictures", h1))
+story.append(Paragraph(
+    "Six round GC9A01 displays (1.28 in, 240 by 240 pixels, SPI), one per person, stand beside the clock face, three on each side. "
+    "Each has its own ESP32 and joins the same Wi-Fi as the controller, so there are no wires back to the Pi. "
+    "The content is real recorded footage of each person: a 3 to 5 second loop, cropped to a circle, resized to 240 by 240 and "
+    "re-encoded as a short frame sequence that fits in the ESP32's flash. A screen also changes state (home, travelling, unknown) on an MQTT command. "
     "In the CAD each module is 39.5 mm across with a 32.4 mm active area.", body))
-story.append(img("docs/img/view_hood.jpg", W * 0.66))
-story.append(Paragraph("Dial, hands and side screen panels, from the 3D viewer.", small))
+story.append(img("docs/img/view_hood.jpg", W * 0.62))
+story.append(Paragraph("Dial, hands and side screens, from the 3D viewer.", small))
 
 story.append(Paragraph("5. Case", h1))
 story.append(Paragraph(
     "A basic outline taken from the reference photos of the family grandfather clock: a plinth, a hollow trunk, an arched hood "
-    "with a broken swan-neck pediment and finial, and an arched dial plate. The pendulum and weights are removed so the trunk can hold the "
-    "motor column and electronics. It is about 2 m tall. This is a rough shape for checking fit, not a finished design.", body))
-story.append(img("docs/img/view_front.jpg", W * 0.5))
+    "with a broken swan-neck pediment and finial, and an arched dial plate. The original movement, weights and pendulum come out. "
+    "The motor stack runs down from behind the dial through the seat-board opening into the trunk, and the dial's brass corner pieces "
+    "can be reused around a new chapter ring. The outline is a rough shape for checking fit, about 2 m tall, not measured from the real case.", body))
+story.append(img("docs/img/view_front.jpg", W * 0.46))
 story.append(Paragraph("Full case from the front, from the 3D viewer.", small))
 
 # ---------------------------------------------------------------- 6 electronics
-story.append(Paragraph("6. Electronics", h1))
+story.append(Paragraph("6. Electronics and parts", h1))
 story.append(Paragraph(
-    "Data flow from the plan: family phones (Find My or OwnTracks) report to Home Assistant, which publishes over MQTT to a Raspberry Pi 4 "
-    "controller. The Pi computes the angles, drives the six steppers through a Raspberry Pi Pico over USB serial, and updates the six ESP32 display nodes over Wi-Fi. "
-    "Parts ordered on October 5, 2026:", body))
-story += bullets([
-    "10 stepper driver modules with heat sinks (six needed, four spare)",
-    "6 ESP32 development boards, one per screen",
-    "3-pack of GC9A01 round displays, quantity 2 (six screens)",
-    "Raspberry Pi Pico starter kit, for the motor controller",
-    "12 V 2 A supply, DC jacks and 100 µF capacitors, for the motor supply",
-    "5 V 3 A USB-C supply for the Raspberry Pi 4, plus a 10-port USB charger",
-    "Solderable breadboards for the driver wiring",
-])
-story.append(Paragraph("Not on that order: the stepper motors themselves, the Raspberry Pi 4, belts and pulleys, and mounting hardware. "
-                       "A 12 V 2 A supply is likely too small for six steppers, especially the NEMA23 pair; confirm the current budget before wiring.", body))
-
-# ---------------------------------------------------------------- 7 open
-story.append(Paragraph("7. Open questions", h1))
-story += bullets([
-    "Who is on which shaft level. The CAD uses list order as a placeholder.",
-    "Whether belts and a column of offset motors is how we want to drive the nested shafts, or whether we want hollow-shaft motors or gears.",
-    "Motor torque on the outer hands, now that the NEMA23 pair is on the outermost shafts.",
-    "Case dimensions, dial size (110 mm radius is a guess) and how the hub mounts to the case.",
-    "Hand design: the CAD hands are plain tapered pointers.",
-    "Screen content and how portraits animate.",
-])
-
-story.append(Paragraph("How to rebuild the CAD", h1))
+    "Family phones (Find My, with OwnTracks as a fallback) report to Home Assistant, which publishes over MQTT to a Raspberry Pi 4 controller. "
+    "The Pi does the Haversine math and routing only. It sends one short command per person over USB serial to a Raspberry Pi Pico, "
+    "which generates all six motors' step pulses in hardware and drives six A4988 stepper drivers from a 12 V supply. "
+    "The Pi also updates the six ESP32 display nodes over Wi-Fi. Wiring is in the " + link(CIRCUIT, "circuit diagram") + ".", body))
 story.append(Paragraph(
-    f'Edit build_cad.py in the repository and push to main. The "Build CAD" workflow regenerates the STEP, STL and GLB files. '
-    f'Download them from the workflow run, or run it by hand from the {link(REPO + "/actions", "Actions tab")}. '
-    "Motor models live in the motors folder.", body))
+    "<b>Order checklist:</b> " + link(CHECKLIST) + ". It lists every part by order, with prices, sources and order numbers, "
+    "and has check boxes for tracking what has been bought. Its check marks and notes are saved only in the browser they are made in.", body))
+story.append(table([
+    ["Module", "Estimated cost"],
+    ["Controller and networking (Pi 4, Pico, SD card)", "$119 to $159"],
+    ["Six-shaft hub (6 hollow-shaft motors, drivers, tubing, bearings, dial, hands)", "$305"],
+    ["Six display nodes (ESP32, GC9A01 screen, bezel, cable)", "$82"],
+    ["Power and wiring", "$74"],
+    ["Fabrication and mounting", "$40"],
+    ["<b>Total</b>", "<b>$620 to $660</b>"],
+], [W - 1.6 * inch, 1.6 * inch]))
+story.append(Paragraph("Orders placed: Amazon on October 5, 2026 ($147.00: drivers, ESP32s, screens, Pico, power supplies, capacitors, USB charger, breadboards) "
+                       "and StepperOnline order 330093 on October 6 (all six hollow-shaft motors and the prototype motor, shipped by DHL from China). "
+                       "Still to buy: Pi 4, SD card, extra tubing and bearings, and the fabrication parts.", small))
+
+# ---------------------------------------------------------------- 7 todo
+story.append(Paragraph("7. To Do Before Thanksgiving", h1))
+story += bullets([
+    "Find case dimensions specifically",
+    "Design hands &amp; 3D print (see ambigrams for potential hand internals)",
+    "Record videos of each person for moving picture frame",
+    "Finish code controlling dynamics and updates and visual displays",
+])
+story.append(Paragraph(
+    "The case dimensions decide whether the hub fits as planned: hood depth, trunk depth, and the narrowest interior width "
+    "(the NEMA23 frame is 57 mm square, the widest part of the stack).", small))
+
+story.append(Paragraph("Files and rebuilding the CAD", h1))
+story.append(Paragraph(
+    f'Edit build_cad.py in the {link(REPO, "repository")} and push to main. The "Build CAD" workflow regenerates the STEP, STL and GLB files, '
+    f'which can be downloaded from the run on the {link(REPO + "/actions", "Actions tab")}. Motor models are in the motors folder.', body))
 
 doc = SimpleDocTemplate("docs/Weasley_Clock_Design.pdf", pagesize=letter, leftMargin=0.8 * inch, rightMargin=0.8 * inch,
                         topMargin=0.8 * inch, bottomMargin=0.8 * inch, title="The Weasley Clock - Design Notes",
