@@ -123,7 +123,12 @@ new GLTFLoader().load('weasley_clock.glb.wasm', g => {
   g.scene.rotation.x = Math.PI / 2;   // file is z-up; the scene is y-up
   g.scene.traverse(m => {
     if (m.name && m.name.startsWith('case_')) caseParts.push(m);
-    if (m.isMesh) m.material.side = T.DoubleSide;
+    if (m.isMesh) {
+      m.material.side = T.DoubleSide;
+      for (let p = m; p; p = p.parent) {
+        if (p.name && p.name.startsWith('motor_')) { m.material = m.material.clone(); m.material.color.set('#8C857A'); break; }
+      }
+    }
   });
   scene.add(g.scene);
   status.remove();

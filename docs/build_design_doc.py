@@ -79,7 +79,7 @@ story.append(table([
     ["Hardware plan", link(PLAN, "Weasley Clock Hardware Plan") + " (architecture, parts, costs, build phases)"],
     ["Order checklist", link(CHECKLIST, "Weasley Clock Order Checklist")],
     ["Circuit diagram", link(CIRCUIT, "Weasley Clock Circuit Diagram") + " (pin-level wiring)"],
-    ["3D model (interactive)", link(VIEWER, "Weasley Clock CAD viewer") + " (still shows an earlier belt-driven motor layout; being updated to the hollow-shaft stack in section 3)"],
+    ["3D model (interactive)", link(VIEWER, "Weasley Clock CAD viewer") + " (case, dial, hands, screens and the motor stack)"],
     ["Code and CAD files", link(REPO)],
 ], [1.5 * inch, W - 1.5 * inch], head=False))
 story.append(Paragraph("The pages and the repository are private. Austin needs to share each page from its Share menu and add each brother as a collaborator on GitHub before the links open for them.", small))
@@ -140,9 +140,14 @@ story.append(Paragraph(
     "Between tubes 3 and 4 the diameter drops by more than one standard step, because tube 4 must clear the 4 mm bore of the level 3 motor. "
     "That one interface needs a small guide bushing; every other interface is a standard consecutive size. "
     "Which of Becky and Evan takes level 1, and the order of Caleb, Austin and Micah, are not yet decided.", small))
+story.append(img("docs/img/view_drive.jpg", W * 0.62))
+story.append(Paragraph("The motor stack seen from the side with the case hidden: two NEMA23 motors in front, four NEMA17 behind, shafts passing through each other's bores.", small))
 story.append(Paragraph(
-    "The estimated stack depth is 300 to 320 mm. A jam anywhere in the stack can bind every hand behind it. "
-    "We accepted that in exchange for the authentic single-pivot look.", body))
+    "The hardware plan estimated a stack depth of 300 to 320 mm. In the CAD, using the vendor models, it comes to about 420 mm, "
+    "from the front tip of the first motor shaft to the rear tip of the last, because each hollow shaft sticks out of both ends of its motor "
+    "(25 mm front and 58 mm rear on the NEMA23, 16 mm and 43 mm on the NEMA17) and 4 mm is left between motors for the couplings. "
+    "That is deeper than the plan assumed, so the case measurements matter. A jam anywhere in the stack can bind every hand behind it; "
+    "we accepted that in exchange for the single-pivot look.", body))
 
 # ---------------------------------------------------------------- 4 screens
 story.append(Paragraph("4. Screens and moving pictures", h1))
@@ -152,16 +157,16 @@ story.append(Paragraph(
     "The content is real recorded footage of each person: a 3 to 5 second loop, cropped to a circle, resized to 240 by 240 and "
     "re-encoded as a short frame sequence that fits in the ESP32's flash. A screen also changes state (home, travelling, unknown) on an MQTT command. "
     "In the CAD each module is 39.5 mm across with a 32.4 mm active area.", body))
-story.append(img("docs/img/view_hood.jpg", W * 0.62))
+story.append(img("docs/img/view_hood.jpg", W * 0.5))
 story.append(Paragraph("Dial, hands and side screens, from the 3D viewer.", small))
 
 story.append(Paragraph("5. Case", h1))
 story.append(Paragraph(
     "A basic outline taken from the reference photos of the family grandfather clock: a plinth, a hollow trunk, an arched hood "
     "with a broken swan-neck pediment and finial, and an arched dial plate. The original movement, weights and pendulum come out. "
-    "The motor stack runs down from behind the dial through the seat-board opening into the trunk, and the dial's brass corner pieces "
-    "can be reused around a new chapter ring. The outline is a rough shape for checking fit, about 2 m tall, not measured from the real case.", body))
-story.append(img("docs/img/view_front.jpg", W * 0.46))
+    "The motor stack runs straight back from the dial, and the dial's brass corner pieces "
+    "can be reused around a new chapter ring. The outline is a rough shape, about 2 m tall and 495 mm deep (sized to hold the motor stack), not measured from the real case.", body))
+story.append(img("docs/img/view_front.jpg", W * 0.36))
 story.append(Paragraph("Full case from the front, from the 3D viewer.", small))
 
 # ---------------------------------------------------------------- 6 electronics
@@ -196,8 +201,8 @@ story += bullets([
     "Finish code controlling dynamics and updates and visual displays",
 ])
 story.append(Paragraph(
-    "The case dimensions decide whether the hub fits as planned: hood depth, trunk depth, and the narrowest interior width "
-    "(the NEMA23 frame is 57 mm square, the widest part of the stack).", small))
+    "The case dimensions decide whether the hub fits: hood depth, trunk depth, and the narrowest interior width. "
+    "The CAD stack is about 420 mm deep and the NEMA23 frame is 57 mm square, the widest part of it.", small))
 
 story.append(Paragraph("Files and rebuilding the CAD", h1))
 story.append(Paragraph(
