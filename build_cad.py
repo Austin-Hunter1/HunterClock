@@ -59,16 +59,19 @@ OD0, OD_STEP = 26.0, 3.0   # outermost shaft OD, and reduction per nesting level
 HAND_T = 2.5
 HAND_Z0, HAND_DZ = 6.0, 3.5  # first hand height above dial, spacing between hands
 HAND_LEN = [95, 105, 115, 125, 135, 145]   # tip radius per hand
-MOTOR_RING_R = 90.0
-# (depth behind dial of the shaft's rear end, frame size, body length)
-LEVELS = [
-    (55,  57.0, 56.0),   # NEMA23
-    (105, 57.0, 56.0),   # NEMA23
-    (155, 42.3, 40.0),   # NEMA17
-    (205, 42.3, 40.0),
-    (255, 42.3, 40.0),
-    (310, 42.3, 40.0),
-]
+# In-line drive: all six motors share one axis parallel to the clock axis,
+# stacked behind each other, each driving its shaft by belt at its own depth.
+MOTOR_STEP = "motors/17HS13-1504H.STEP"   # body z -33.8..0, 5 mm shaft to z=+16, leads out the back
+MOTOR_BODY, MOTOR_SHAFT = 34.0, 16.0
+MOTOR_OFFSET_Y = -65.0      # motor axis position relative to the clock axis
+DEPTH0, DEPTH_STEP = 55.0, 55.0   # belt-plane depth behind dial; step > body + shaft so motors don't collide
+BELT_W = 8.0
+MOTOR_PULLEY_R = 8.0
+# Round display modules (GC9A01 1.28in): 39.5 mm board, 32.4 mm active area.
+# They sit on the left half of the dial, which the hands (0-180 deg clockwise) never sweep.
+SCREEN_OD, SCREEN_GLASS, SCREEN_T = 39.5, 32.4, 3.0
+SCREEN_RING_R = 115.0
+SCREEN_ANGLES = [205 + 26 * k for k in range(6)]   # deg clockwise from 12 o'clock
 COLORS = ["#4F7A4A", "#3E6470", "#A8672B", "#8A4B6B", "#B0562A", "#5B5EA6"]
 
 
@@ -93,6 +96,14 @@ def hand(od, od_next, z, length, angle_deg):
     return h.rotate((0, 0, 0), (0, 0, 1), -angle_deg)  # clockwise from 12 o'clock
 
 
+def load_motor():
+    """Vendor 17HS13-1504H STEP, trimmed of its lead wires (which run ~90 mm out the back)."""
+    m = cq.importers.importStep(MOTOR_STEP)
+    keep = (cq.Workplane("XY").workplane(offset=-MOTOR_BODY - 0.5)
+            .rect(45, 45).extrude(MOTOR_BODY + 0.5 + MOTOR_SHAFT + 0.5))
+    return m.intersect(keep)
+
+
 def build():
     asm = cq.Assembly(name="weasley_clock")
 
@@ -100,32 +111,42 @@ def build():
             .circle(OD0 / 2 + 1.0).extrude(DIAL_T))
     asm.add(dial, name="dial", color=cq.Color("#F7F3EA"))
 
+    motor_proto = load_motor()
+
     for i, name in enumerate(NAMES):
-        depth, frame, body_len = LEVELS[i]
+        zb = -(DEPTH0 + DEPTH_STEP * i)     # centre of this level's belt plane
         od = OD0 - OD_STEP * i
         od_next = od - OD_STEP if i < len(NAMES) - 1 else 0.0  # innermost hand has a solid hub
         hand_z = HAND_Z0 + HAND_DZ * i
         color = cq.Color(COLORS[i])
 
-        # Hollow shaft: from rear (pulley end) up through the hand's hub.
+        # Hollow shaft from the belt pulley up to the hand's hub.
         # Outer shafts are shorter, so each hand sits on its own shaft end.
-        shaft = tube(od, WALL, -depth, hand_z)
-        asm.add(shaft, name=f"shaft_{name}", color=color)
+        asm.add(tube(od, WALL, zb - BELT_W / 2, hand_z), name=f"shaft_{name}", color=color)
+        asm.add(hand(od, od_next, hand_z, HAND_LEN[i], hand_angle_deg(name)),
+                name=f"hand_{name}", color=color)
 
-        hnd = hand(od, od_next, hand_z, HAND_LEN[i], hand_angle_deg(name))
-        asm.add(hnd, name=f"hand_{name}", color=color)
+        # Driven pulley on the shaft
+        asm.add(cq.Workplane("XY").workplane(offset=zb - BELT_W / 2)
+                .circle(od / 2 + 12).circle(od / 2).extrude(BELT_W),
+                name=f"pulley_{name}", color=cq.Color("#B8B2A6"))
 
-        # Pulley on the shaft's rear end
-        pulley = (cq.Workplane("XY").workplane(offset=-depth - 8)
-                  .circle(od / 2 + 12).circle(od / 2).extrude(8))
-        asm.add(pulley, name=f"pulley_{name}", color=cq.Color("#B8B2A6"))
+        # Motor: face flush with the bottom of the belt plane, body extending rearward
+        face_z = zb - BELT_W / 2
+        asm.add(motor_proto.translate((0, MOTOR_OFFSET_Y, face_z)),
+                name=f"motor_{name}", color=cq.Color("#2B2419"))
+        asm.add(cq.Workplane("XY").workplane(offset=face_z).center(0, MOTOR_OFFSET_Y)
+                .circle(MOTOR_PULLEY_R).extrude(BELT_W),
+                name=f"motor_pulley_{name}", color=cq.Color("#B8B2A6"))
 
-        # Motor offset radially (belt-driven), shaft axis parallel to z
-        a = math.radians(60 * i)
-        mx, my = MOTOR_RING_R * math.cos(a), MOTOR_RING_R * math.sin(a)
-        motor = (cq.Workplane("XY").workplane(offset=-depth - body_len)
-                 .center(mx, my).rect(frame, frame).extrude(body_len))
-        asm.add(motor, name=f"motor_{name}", color=cq.Color("#2B2419"))
+        # Round display module on the dial's front face
+        ang = math.radians(SCREEN_ANGLES[i])
+        sx, sy = SCREEN_RING_R * math.sin(ang), SCREEN_RING_R * math.cos(ang)
+        asm.add(cq.Workplane("XY").center(sx, sy).circle(SCREEN_OD / 2).extrude(SCREEN_T),
+                name=f"screen_board_{name}", color=color)
+        asm.add(cq.Workplane("XY").workplane(offset=SCREEN_T).center(sx, sy)
+                .circle(SCREEN_GLASS / 2).extrude(0.6),
+                name=f"screen_glass_{name}", color=cq.Color("#241D15"))
 
     return asm
 
