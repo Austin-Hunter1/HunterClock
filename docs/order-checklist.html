@@ -1,0 +1,410 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Weasley Clock Order Checklist</title>
+<style>
+  :root{
+    --ground:#F7F3EA;
+    --surface:#FFFFFF;
+    --surface-sunken:#F0E9DA;
+    --ink:#2B2419;
+    --muted:#8A7C68;
+    --line:#DED2BC;
+    --accent:#A8672B;
+    --accent-ink:#6F4419;
+    --good:#4F7A4A;
+    --warn:#B0562A;
+    --hold:#8A7C68;
+    --hold-bg:#EDE6D6;
+    --shadow: 0 1px 2px rgba(43,36,25,0.06), 0 6px 20px -8px rgba(43,36,25,0.12);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      color-scheme: dark;
+      --ground:#1A150F; --surface:#231D15; --surface-sunken:#2C2418;
+      --ink:#EEE4D2; --muted:#A5977E; --line:#3C3222;
+      --accent:#E1974F; --accent-ink:#F3C489; --good:#7FB36F; --warn:#E28A54;
+      --hold:#A5977E; --hold-bg:#2C2A22;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 28px -10px rgba(0,0,0,0.5);
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --ground:#1A150F; --surface:#231D15; --surface-sunken:#2C2418;
+    --ink:#EEE4D2; --muted:#A5977E; --line:#3C3222;
+    --accent:#E1974F; --accent-ink:#F3C489; --good:#7FB36F; --warn:#E28A54;
+    --hold:#A5977E; --hold-bg:#2C2A22;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 28px -10px rgba(0,0,0,0.5);
+  }
+
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Libre+Franklin:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; padding: 0 16px;
+    background:var(--ground); color:var(--ink);
+    font-family:'Libre Franklin', system-ui, sans-serif; font-size:16px; line-height:1.55;
+  }
+  .page{ max-width:860px; margin:0 auto; padding-block: 28px 90px; }
+  h1,h2{ font-family:'Fraunces', Georgia, serif; margin:0; text-wrap:balance; }
+  a{ color:var(--accent-ink); }
+
+  header.top{ margin-bottom:18px; }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace; font-size:11.5px; letter-spacing:0.13em; text-transform:uppercase;
+    color:var(--accent-ink); margin:0 0 10px;
+  }
+  h1{ font-size:clamp(26px,5vw,34px); letter-spacing:-0.01em; }
+  .dek{ color:var(--muted); font-size:15px; max-width:64ch; margin:10px 0 0; }
+
+  .callout{
+    background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--warn); border-radius:10px;
+    padding:14px 18px; box-shadow:var(--shadow); margin: 18px 0; font-size:14.5px;
+  }
+  .callout .label{
+    display:block; font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--warn); margin-bottom:6px;
+  }
+
+  .progress-bar{
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
+    padding: 14px 18px; margin: 18px 0 26px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 14px; justify-content: space-between;
+  }
+  .progress-bar .stat{ display:flex; flex-direction:column; gap:2px; min-width:110px; }
+  .progress-bar .stat .k{ font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); }
+  .progress-bar .stat .v{ font-family:'IBM Plex Mono', monospace; font-size:18px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .progress-track{ flex: 1 1 140px; height:8px; background:var(--surface-sunken); border-radius:999px; overflow:hidden; min-width:0; }
+  .progress-fill{ height:100%; background:var(--good); border-radius:999px; width:0%; transition: width .25s ease; }
+  .reset-btn{
+    font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.04em; text-transform:uppercase;
+    color:var(--muted); background:none; border:1px solid var(--line); border-radius:999px; padding:6px 12px; cursor:pointer;
+  }
+  .reset-btn:hover{ border-color:var(--warn); color:var(--warn); }
+
+  section.tracker{ margin-bottom: 30px; }
+  .tracker h2{ font-size:19px; padding-left:14px; border-left:3px solid var(--accent-ink); margin-bottom:10px; }
+  .tracker-empty{ color:var(--muted); font-size:14px; background:var(--surface); border:1px dashed var(--line); border-radius:10px; padding:16px 18px; }
+  .tracker-table{ background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); overflow:hidden; overflow-x:auto; }
+  .tracker-row{ display:grid; grid-template-columns: 1fr 1fr 90px 90px; gap:10px; padding:10px 16px; border-bottom:1px solid var(--line); font-size:13.5px; align-items:center; min-width: 480px; }
+  .tracker-row:last-child{ border-bottom:none; }
+  .tracker-row.head{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted); background:var(--surface-sunken); }
+  .tracker-row .num{ font-family:'IBM Plex Mono', monospace; font-weight:600; }
+  .tracker-row .price{ font-family:'IBM Plex Mono', monospace; text-align:right; font-variant-numeric:tabular-nums; }
+
+  section.order{ margin-bottom: 34px; }
+  .order-head{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; padding-left:14px; border-left:3px solid var(--accent); margin-bottom: 6px; }
+  .order-head h2{ font-size: 20px; }
+  .order-head .when{
+    font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.07em; text-transform:uppercase;
+    background: var(--accent); color: var(--surface); padding: 3px 10px; border-radius: 999px;
+  }
+  .order-head .when.hold{ background: var(--hold); }
+  .order-note{ color:var(--muted); font-size:14px; margin: 4px 0 14px 17px; max-width: 68ch; }
+
+  .item-list{ display:flex; flex-direction:column; gap:10px; }
+  .item-row{
+    background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow);
+    padding: 12px 16px; display:flex; flex-direction:column; gap:8px;
+  }
+  .item-row.held{ background: var(--hold-bg); }
+  .item-top{ display:flex; align-items:flex-start; gap:10px; flex-wrap:wrap; }
+  .item-row input[type=checkbox]{ width:19px; height:19px; margin-top:2px; accent-color: var(--good); cursor:pointer; flex-shrink:0; }
+  .item-row input[type=checkbox]:disabled{ cursor:not-allowed; opacity:0.55; }
+  .item-main{ flex:1 1 220px; min-width:0; }
+  .item-name{ font-weight:600; font-size:14.5px; }
+  .item-row.checked .item-name{ text-decoration: line-through; color: var(--muted); }
+  .item-meta{ font-size:12.5px; color:var(--muted); margin-top:2px; }
+  .item-meta a{ white-space:nowrap; }
+  .pill-verified{
+    font-family:'IBM Plex Mono', monospace; font-size:9.5px; letter-spacing:0.05em; text-transform:uppercase;
+    color: var(--good); border:1px solid var(--good); border-radius:999px; padding:1px 6px; margin-left:6px; white-space:nowrap;
+  }
+  .item-qty{ font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:var(--muted); white-space:nowrap; align-self:center; }
+  .item-price-wrap{ display:flex; align-items:center; gap:2px; align-self:center; }
+  .item-price-wrap .cur{ font-family:'IBM Plex Mono', monospace; font-size:13px; color:var(--muted); }
+  .item-price-wrap input{ width:70px; }
+
+  .item-fields{ display:flex; flex-wrap:wrap; gap:8px 16px; padding-top:6px; border-top:1px dashed var(--line); }
+  .field{ display:flex; flex-direction:column; gap:3px; flex:1 1 150px; min-width:120px; }
+  .field label{ font-family:'IBM Plex Mono', monospace; font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted); }
+  .field input{
+    font-family:'IBM Plex Mono', monospace; font-size:13px; color:var(--ink);
+    background:var(--surface-sunken); border:1px solid var(--line); border-radius:6px; padding:5px 8px; width:100%;
+  }
+  .field input:focus-visible, .reset-btn:focus-visible, input[type=checkbox]:focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; }
+  .field input::placeholder{ color: var(--muted); opacity:0.7; }
+
+  footer{ margin-top:40px; padding-top:16px; border-top:1px solid var(--line); color:var(--muted); font-family:'IBM Plex Mono', monospace; font-size:11.5px; }
+
+  @media (max-width: 480px){
+    .tracker-row{ font-size:12.5px; }
+  }
+</style>
+
+<div class="page">
+  <header class="top">
+    <p class="eyebrow">Order Checklist</p>
+    <h1>The Weasley Clock — Everything to Order</h1>
+    <p class="dek">Every part from the hardware plan. Check items off as you order them, edit price or source if it changes, and log a confirmation number to track it — everything saves locally in this browser. Wiring reference: <a href="circuit-diagram.html" target="_blank">pin-level circuit diagram</a>.</p>
+  </header>
+
+  <div class="callout">
+    <span class="label">Before you order the motors</span>
+    Ordering Order 2 today skips the cabinet-measurement gate from the plan — those motors are sized to an estimated hub depth, not your actual case. Worth a five-minute tape-measure check first if you haven't done it yet.
+  </div>
+
+  <div class="progress-bar" id="progressBar">
+    <div class="stat"><span class="k">Ordered</span><span class="v" id="statCount">0 / 0</span></div>
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="stat"><span class="k">Spent</span><span class="v" id="statSpent">$0</span></div>
+    <div class="stat"><span class="k">Full plan</span><span class="v" id="statTotal">$0</span></div>
+    <button class="reset-btn" id="resetBtn" type="button">Reset all</button>
+  </div>
+
+  <section class="tracker">
+    <h2>Order Number Tracker</h2>
+    <div id="trackerBody"></div>
+  </section>
+
+  <div id="orderSections"></div>
+
+  <footer>
+    Weasley Clock — Order Checklist · all edits saved locally in this browser only, nothing is shared · Amazon prices from your cart, 2026-10-05
+  </footer>
+</div>
+
+<script>
+(function(){
+  var STORE_KEY = 'weasley-checklist-v4';
+
+  var SECTIONS = [
+    { key:'1', title:'Order today — Amazon cart and prototype', when:'Order 1',
+      note:'No gate on any of this. Prices for the Amazon items come from your cart of 2026-10-05; the rest are still estimates. Check the compatibility notes on each line before you check out.' },
+    { key:'2', title:'Hub motors — ordered', when:'Order 2',
+      note:'Ordered from StepperOnline as order 330093 on 2026-10-06 by DHL Express from China, together with the prototype motor. The cabinet-fit measurement is still open, and these are the least-returnable parts in the plan.' },
+    { key:'3', title:'Wait — after motors arrive', when:'Order 3, partial', whenHold:true,
+      note:'Bearings ship in 1–2 days from McMaster regardless, so there’s no schedule cost to waiting until the real tube ODs are in hand to size them correctly. Checkboxes here stay off until then, but you can still edit price/source while you plan.' },
+    { key:'4', title:'Order today — remaining displays', when:'Order 4',
+      note:'Not gated by the cabinet measurement at all. The second AITRIP pack is already in your Amazon cart (Order 1), so this order is just the printed bezels and the USB cables.' },
+    { key:'5', title:'Order later — final assembly', when:'Order 5', whenHold:true,
+      note:'Needed only once the hub and all 6 displays are built and ready to mount. Fine to order any time before then.' },
+    { key:'opt', title:'Optional', when:'Anytime', whenHold:true, note:'' }
+  ];
+
+  var ITEMS = [
+    { id:'pi4', section:'1', name:'Raspberry Pi 4 (4GB)', qty:'×1', price:100, verified:true,
+      meta:'<a href="https://www.pishop.us/product/raspberry-pi-4-model-b-4gb/" target="_blank">pishop.us</a>', src:'PiShop.us' },
+    { id:'pico', section:'1', name:'KEYESTUDIO Raspberry Pi Pico starter kit (RP2040 + headers + micro-USB cable)', qty:'×1', price:9.45,
+      meta:'Plain Pico, not a Pico W, and pin-compatible with the diagram. The headers come loose, so solder them on before using it', src:'Amazon' },
+    { id:'nema17-a', section:'1', ordered:true, orderNum:'330093', name:'NEMA17 hollow-shaft stepper (17HS13-1504H)', qty:'×1', price:15.93, verified:true,
+      meta:'1 for the prototype, on the same StepperOnline invoice (330093) as the other motors — <a href="https://www.omc-stepperonline.com/nema-17-hollow-shaft-stepper-motor-bipolar-0-25-nm-35-41oz-in-1-5a-42x42x33-8mm-17hs13-1504h" target="_blank">omc-stepperonline.com</a>', src:'StepperOnline' },
+    { id:'sdcard', section:'1', name:'MicroSD card, 32GB (A1-rated)', qty:'×1', price:10, meta:'Any reputable brand', src:'Amazon' },
+    { id:'usbcable', section:'1', name:'USB cable, Pi ↔ Pico (data-capable)', qty:'×1', price:0, meta:'The KEYESTUDIO Pico kit includes one. Only buy a $6 cable if that one turns out to be charge-only', src:'' },
+    { id:'psu-pi', section:'1', name:'LitStar 5V 3A USB-C power supply (Pi 4)', qty:'×1', price:9.99, meta:'Has an inline on/off switch. Matches the Pi 4 spec of 5V and 3A over USB-C', src:'Amazon' },
+    { id:'psu-motor', section:'1', name:'12V 2A power supply, 5.5 × 2.1 mm plug (motor rail)', qty:'×1', price:7.99,
+      meta:'Not 5V — the A4988 driver needs 8–35V on VMOT to run at all. Check the label for center-positive polarity. 2 A is enough for typical clock-hand use, but if the supply sags when several motors move at once, move to 12V 3–5 A', src:'Amazon' },
+    { id:'barrel-jack', section:'1', name:'California JOS DC jack adapters, 2.1 × 5.5 mm (2 female + 2 male)', qty:'1 pack', price:3.97,
+      meta:'Use a female jack: its screw terminals connect to the +12V and ground buses. The male plugs are spares. The 2.1 × 5.5 mm size matches the 12V supply', src:'Amazon' },
+    { id:'esp32-six', section:'1', name:'Aideepen ESP32 30-pin dev board, 6-pack', qty:'1 pack', price:25.99,
+      meta:'Cart set name \'CP2102-6PCS\' means the USB-serial chip is a CP2102. Micro-USB, all 6 nodes in one pack — <a href="https://www.amazon.com/gp/product/B0BQJ8BTVB" target="_blank">amazon.com</a>', src:'Amazon' },
+    { id:'aitrip-a', section:'1', name:'AITRIP GC9A01 1.28" round TFT, 3-pack', qty:'1 pack', price:15.99,
+      meta:'Cart quantity 2 (this and the next line). Includes dupont wires, which should be female-to-female; check when they arrive — <a href="https://www.amazon.com/gp/product/B0GJ3ZK92C" target="_blank">amazon.com</a>. Banks 2 spare screens toward the 6 needed', src:'Amazon' },
+    { id:'proto-kit', section:'1', name:'Breadboard, small terminal blocks', qty:'1 kit', price:8, meta:'', src:'Amazon' },
+    { id:'kstube', section:'1', name:'K&amp;S Round Brass Telescopic Tubing Assortment (Small)', qty:'×1', price:29.98, verified:true,
+      meta:'One kit now, for dry-fitting against the cabinet. A second kit, only if needed for length margin, is under Order 3 — <a href="https://ksmetals.com/products/brtasstsm" target="_blank">ksmetals.com</a>', src:'K&S Metals' },
+
+    { id:'nema17-b', section:'2', ordered:true, orderNum:'330093', name:'NEMA17 hollow-shaft stepper (17HS13-1504H)', qty:'×3', price:47.79, verified:true,
+      meta:'3 more (4 total across the build), $15.93 each on the invoice — <a href="https://www.omc-stepperonline.com/nema-17-hollow-shaft-stepper-motor-bipolar-0-25-nm-35-41oz-in-1-5a-42x42x33-8mm-17hs13-1504h" target="_blank">omc-stepperonline.com</a>', src:'StepperOnline' },
+    { id:'nema23', section:'2', ordered:true, orderNum:'330093', name:'NEMA23 hollow-shaft stepper (23HS18-2004H)', qty:'×2', price:44.44, verified:true,
+      meta:'$22.22 each on the invoice, well under the $35 estimate — <a href="https://www.omc-stepperonline.com/dual-shaft-nema-23-hollow-shaft-stepper-motor-bipolar-0-78-nm-110-5oz-in-2-0a-57x57x45mm-23hs18-2004h" target="_blank">omc-stepperonline.com</a>', src:'StepperOnline' },
+    { id:'stepper-fees', section:'2', ordered:true, orderNum:'330093', name:'StepperOnline DHL Express shipping + import duty', qty:'1', price:80.67,
+      meta:'DHL Express $53.22 + estimated import duty $32.45 − $5.00 coupon (sub5off). The duty is the invoice\'s estimate, so the final amount can differ', src:'StepperOnline' },
+    { id:'a4988', section:'1', name:'Photect stepper motor driver modules with heat sinks, 10-pack', qty:'1 pack', price:13.99,
+      meta:'Covers all 6 drivers plus spares. The cart title is cut off, so confirm the boards are marked A4988 when they arrive (DRV8825 boards have a different Vref formula). Stick the heat sinks on before use', src:'Amazon' },
+    { id:'caps', section:'1', name:'Tnisesm electrolytic capacitors, 100 µF 25 V, 20-pack', qty:'1 pack', price:4.99,
+      meta:'6 go across VMOT/GND at the drivers. The diagram\'s 470 µF bulk cap can be 5 of these in parallel (about 500 µF), so there is no separate 470 µF to buy. Long leg is +', src:'Amazon' },
+    { id:'headers', section:'1', name:'Female pin headers, 2.54 mm, 1×8 (or 1×40 strips)', qty:'12 positions', price:6,
+      meta:'Sockets for the six A4988s so they can be swapped. Not in the cart yet. Needs soldering', src:'Amazon' },
+
+    { id:'kstube-b', section:'3', hold:true, name:'K&amp;S Round Brass Telescopic Tubing Assortment (Small), second kit', qty:'×1', price:29.98,
+      meta:'Only if the first kit does not give enough length for level 6 — <a href="https://ksmetals.com/products/brtasstsm" target="_blank">ksmetals.com</a>', src:'K&S Metals' },
+    { id:'bearings', section:'3', hold:true, name:'Radial/thrust bearings + 1 transition bushing', qty:'×6', price:24,
+      meta:'Size after dry-fitting Order 2’s motors — <a href="https://www.mcmaster.com" target="_blank">mcmaster.com</a>', src:'McMaster-Carr' },
+    { id:'dialface', section:'3', hold:true, name:'Printed dial face, 12→6 log scale', qty:'×1', price:12, meta:'3D-printed or laser-cut', src:'' },
+    { id:'pointers', section:'3', hold:true, name:'Pointer hands, 6 lengths', qty:'×6', price:6, meta:'3D-printed', src:'' },
+
+    { id:'aitrip-b', section:'1', name:'AITRIP GC9A01 1.28" round TFT, 3-pack', qty:'1 pack', price:15.99,
+      meta:'Second pack: gives all 6 screens with the first — <a href="https://www.amazon.com/gp/product/B0GJ3ZK92C" target="_blank">amazon.com</a>', src:'Amazon' },
+    { id:'bezel', section:'4', name:'Printed bezel / diffuser ring', qty:'×6', price:12, meta:'3D-printed, all 6 including Order 1’s prototype', src:'' },
+    { id:'display-cable', section:'4', name:'SABRENT 6-pack micro-USB cables, 22 AWG (3× 3 ft + 3× 1 ft)', qty:'1 pack', price:12, meta:'One cable per ESP32 node. Use the 1 ft cables for the nodes nearest the USB strip and the 3 ft ones for the far nodes. Price is an estimate, so correct it at checkout', src:'Amazon' },
+
+    { id:'usbhub', section:'1', name:'10-port USB charging strip (6× USB-A + 4× USB-C), 50 W', qty:'×1', price:16.99,
+      meta:'Feeds the 6 ESP32 nodes from its USB-A ports. It supplies power only, which is all the nodes need. Cables must be USB-A to micro-USB', src:'Amazon' },
+    { id:'wiring', section:'5', name:'Terminal blocks, JST leads, hookup wire', qty:'assorted', price:15, meta:'', src:'Amazon' },
+    { id:'perfboard', section:'1', name:'EPLZON solderable breadboard PCB, 5 pack + 2 mini', qty:'1 pack', price:8.99,
+      meta:'Plan on two boards with 3 A4988s each (a 3.5 × 2.05 in board holds 3). Run +12V and GND with short, thick wire instead of the thin printed rails', src:'Amazon' },
+    { id:'panel-backing', section:'5', name:'1/4" plywood or acrylic backing panel', qty:'×1', price:20, meta:'Carries all 6 gauge + display modules as one removable unit', src:'Hardware store' },
+    { id:'brass', section:'5', name:'Brass-finish spray or gilt pen', qty:'×1', price:10, meta:'', src:'Hardware / craft store' },
+    { id:'brackets', section:'5', name:'French cleat or picture-hanging brackets', qty:'1 set', price:10, meta:'', src:'Hardware store' },
+
+    { id:'ha-host', section:'opt', name:'Home Assistant host', qty:'optional', price:0, meta:'Skip if reusing existing hardware', src:'' }
+  ];
+
+  function loadState(){
+    try { var raw = localStorage.getItem(STORE_KEY); return raw ? JSON.parse(raw) : {}; }
+    catch(e){ return {}; }
+  }
+  function saveState(state){
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch(e){}
+  }
+  function getItemState(state, item){
+    var s = state[item.id] || {};
+    return {
+      checked: (s.checked !== undefined) ? !!s.checked : !!item.ordered,
+      price: (s.price !== undefined && s.price !== '' && !isNaN(parseFloat(s.price))) ? parseFloat(s.price) : item.price,
+      src: (s.src !== undefined) ? s.src : (item.src || ''),
+      orderNum: (s.orderNum !== undefined) ? s.orderNum : (item.orderNum || '')
+    };
+  }
+  function setItemState(id, patch){
+    var state = loadState();
+    state[id] = Object.assign({}, state[id] || {}, patch);
+    saveState(state);
+    render();
+  }
+
+  var sectionsHost = document.getElementById('orderSections');
+  SECTIONS.forEach(function(sec){
+    var items = ITEMS.filter(function(it){ return it.section === sec.key; });
+    var section = document.createElement('section');
+    section.className = 'order';
+    var noteHtml = sec.note ? '<p class="order-note">' + sec.note + '</p>' : '';
+    section.innerHTML =
+      '<div class="order-head"><h2>' + sec.title + '</h2><span class="when' + (sec.whenHold ? ' hold' : '') + '">' + sec.when + '</span></div>' +
+      noteHtml +
+      '<div class="item-list" id="list-' + sec.key + '"></div>';
+    sectionsHost.appendChild(section);
+
+    var list = section.querySelector('.item-list');
+    items.forEach(function(item){
+      var row = document.createElement('div');
+      row.className = 'item-row' + (item.hold ? ' held' : '');
+      row.setAttribute('data-id', item.id);
+      var verifiedPill = item.verified ? '<span class="pill-verified">verified</span>' : '';
+      var metaLine = item.meta ? item.meta + ' ' + verifiedPill : verifiedPill;
+      row.innerHTML =
+        '<div class="item-top">' +
+          '<input type="checkbox" id="chk-' + item.id + '"' + (item.hold ? ' disabled' : '') + '>' +
+          '<div class="item-main">' +
+            '<label for="chk-' + item.id + '" class="item-name">' + item.name + '</label>' +
+            (metaLine ? '<div class="item-meta">' + metaLine + '</div>' : '') +
+          '</div>' +
+          '<div class="item-qty">' + item.qty + '</div>' +
+          '<div class="item-price-wrap"><span class="cur">$</span><input type="number" step="0.01" min="0" class="f-price" aria-label="Price for ' + item.name + '"></div>' +
+        '</div>' +
+        '<div class="item-fields">' +
+          '<div class="field"><label>Ordered from</label><input type="text" class="f-src" placeholder="Vendor or location"></div>' +
+          '<div class="field"><label>Order #</label><input type="text" class="f-order" placeholder="Confirmation number"></div>' +
+        '</div>';
+      list.appendChild(row);
+    });
+  });
+
+  var allRows = Array.prototype.slice.call(document.querySelectorAll('.item-row'));
+
+  function render(){
+    var state = loadState();
+    var totalCount = 0, checkedCount = 0, totalCost = 0, spentCost = 0;
+
+    allRows.forEach(function(row){
+      var id = row.getAttribute('data-id');
+      var item = ITEMS.filter(function(i){ return i.id === id; })[0];
+      var s = getItemState(state, item);
+
+      var chk = row.querySelector('input[type=checkbox]');
+      var priceInput = row.querySelector('.f-price');
+      var srcInput = row.querySelector('.f-src');
+      var orderInput = row.querySelector('.f-order');
+
+      if (document.activeElement !== chk) chk.checked = s.checked;
+      if (document.activeElement !== priceInput) priceInput.value = s.price;
+      if (document.activeElement !== srcInput) srcInput.value = s.src;
+      if (document.activeElement !== orderInput) orderInput.value = s.orderNum;
+
+      row.classList.toggle('checked', s.checked && !item.hold);
+
+      totalCost += s.price;
+      if (!item.hold) {
+        totalCount++;
+        if (s.checked) { checkedCount++; spentCost += s.price; }
+      }
+    });
+
+    document.getElementById('statCount').textContent = checkedCount + ' / ' + totalCount;
+    document.getElementById('statSpent').textContent = '$' + spentCost.toFixed(2).replace(/\.00$/, '');
+    document.getElementById('statTotal').textContent = '$' + totalCost.toFixed(2).replace(/\.00$/, '');
+    var pct = totalCount ? Math.round((checkedCount / totalCount) * 100) : 0;
+    document.getElementById('progressFill').style.width = pct + '%';
+
+    renderTracker(state);
+  }
+
+  function renderTracker(state){
+    var host = document.getElementById('trackerBody');
+    var logged = ITEMS.map(function(item){
+      var s = getItemState(state, item);
+      return { item: item, s: s };
+    }).filter(function(x){ return x.s.orderNum.trim() !== ''; });
+
+    if (!logged.length){
+      host.innerHTML = '<div class="tracker-empty">No order numbers logged yet — add one under any item below once you’ve checked out.</div>';
+      return;
+    }
+    var rows = '<div class="tracker-row head"><div>Item</div><div>Order #</div><div>From</div><div style="text-align:right">Price</div></div>';
+    logged.forEach(function(x){
+      rows += '<div class="tracker-row">' +
+        '<div>' + x.item.name + '</div>' +
+        '<div class="num">' + escapeHtml(x.s.orderNum) + '</div>' +
+        '<div>' + escapeHtml(x.s.src || '—') + '</div>' +
+        '<div class="price">$' + x.s.price.toFixed(2).replace(/\.00$/, '') + '</div>' +
+      '</div>';
+    });
+    host.innerHTML = '<div class="tracker-table">' + rows + '</div>';
+  }
+
+  function escapeHtml(str){
+    var d = document.createElement('div'); d.textContent = str; return d.innerHTML;
+  }
+
+  allRows.forEach(function(row){
+    var id = row.getAttribute('data-id');
+    var chk = row.querySelector('input[type=checkbox]');
+    var priceInput = row.querySelector('.f-price');
+    var srcInput = row.querySelector('.f-src');
+    var orderInput = row.querySelector('.f-order');
+
+    chk.addEventListener('change', function(){
+      if (chk.disabled) return;
+      setItemState(id, { checked: chk.checked });
+    });
+    priceInput.addEventListener('input', function(){
+      setItemState(id, { price: priceInput.value });
+    });
+    srcInput.addEventListener('input', function(){
+      setItemState(id, { src: srcInput.value });
+    });
+    orderInput.addEventListener('input', function(){
+      setItemState(id, { orderNum: orderInput.value });
+    });
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', function(){
+    saveState({});
+    render();
+  });
+
+  render();
+})();
+</script>
+
+</body></html>

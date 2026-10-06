@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Weasley Clock</title>
+<style>
+/* Layout: a single centered column, a short intro, then a list of the project's documents. */
+:root {
+  --bg: #F7F3EA;
+  --panel: #FFFFFF;
+  --fg: #2B2419;
+  --muted: #7A6E5C;
+  --line: #DED2BC;
+  --accent: #8C5A2B;
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #1A150F; --panel: #231D15; --fg: #EEE4D2; --muted: #A5977E; --line: #3C3222; --accent: #E1974F; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); line-height: 1.6; }
+main { max-width: 44rem; margin: 0 auto; padding: 3rem 1rem 4rem; }
+h1 { font-family: var(--font-display); font-size: clamp(2rem, 6vw, 2.8rem); line-height: 1.1; margin: 0 0 .75rem; text-wrap: balance; }
+p { margin: 0 0 1rem; max-width: 65ch; }
+.lede { color: var(--muted); font-size: 1.05rem; }
+ul { list-style: none; padding: 0; margin: 2rem 0 0; display: grid; gap: .75rem; }
+li a { display: block; padding: 1rem 1.1rem; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; color: inherit; text-decoration: none; }
+li a:hover, li a:focus-visible { border-color: var(--accent); outline: none; }
+li strong { display: block; color: var(--accent); }
+li span { color: var(--muted); font-size: .92rem; }
+footer { margin-top: 2.5rem; color: var(--muted); font-size: .85rem; }
+footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>The Weasley Clock</h1>
+  <p class="lede">A grandfather clock rebuilt after the family clock in the Harry Potter books. Six hands show how far each person is from home, and six round screens beside the dial loop a short video of each person.</p>
+  <ul>
+    <li><a href="Weasley_Clock_Design.pdf"><strong>Design notes (PDF)</strong><span>Inspiration, the distance-to-angle mapping, the hollow-shaft motor stack, screens, parts and the to-do list.</span></a></li>
+    <li><a href="viewer/"><strong>3D model</strong><span>Rotate and zoom the case, dial, hands, screens and motor stack.</span></a></li>
+    <li><a href="hardware-plan.html"><strong>Hardware plan</strong><span>Architecture, parts by module, costs, build phases and sourcing.</span></a></li>
+    <li><a href="circuit-diagram.html"><strong>Circuit diagram</strong><span>Pin-level wiring for the controller, six motor drivers and six display nodes.</span></a></li>
+    <li><a href="order-checklist.html"><strong>Order checklist</strong><span>Every part, with check boxes for what has been ordered. Checks are saved only in your own browser.</span></a></li>
+  </ul>
+  <footer>Source code and CAD build: <a href="https://github.com/Austin-Hunter1/HunterClock">github.com/Austin-Hunter1/HunterClock</a></footer>
+</main>
+</body>
+</html>

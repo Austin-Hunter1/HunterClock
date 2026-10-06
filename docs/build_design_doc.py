@@ -8,10 +8,11 @@ from reportlab.lib.units import inch
 from reportlab.platypus import Image, KeepTogether, Paragraph, SimpleDocTemplate, Table, TableStyle
 
 REPO = "https://github.com/Austin-Hunter1/HunterClock"
-VIEWER = "https://claude.ai/artifact/VGXRxYqbKpFKdoPEkXQQYK"
-PLAN = "https://claude.ai/artifact/7U4RLGXsm4w6TAcJvgQopS"
-CIRCUIT = "https://claude.ai/artifact/6CB7icqFPn5Q8jYG5KjDA8"
-CHECKLIST = "https://claude.ai/artifact/RxCKqw6WKXXkBbC6VEKhYf"
+SITE = "https://austin-hunter1.github.io/HunterClock/"
+VIEWER = SITE + "viewer/"
+PLAN = SITE + "hardware-plan.html"
+CIRCUIT = SITE + "circuit-diagram.html"
+CHECKLIST = SITE + "order-checklist.html"
 
 INK = colors.HexColor("#2B2419")
 MUTED = colors.HexColor("#7A6E5C")
@@ -82,7 +83,7 @@ story.append(table([
     ["3D model (interactive)", link(VIEWER, "Weasley Clock CAD viewer") + " (case, dial, hands, screens and the motor stack)"],
     ["Code and CAD files", link(REPO)],
 ], [1.5 * inch, W - 1.5 * inch], head=False))
-story.append(Paragraph("The pages and the repository are private. Austin needs to share each page from its Share menu and add each brother as a collaborator on GitHub before the links open for them.", small))
+story.append(Paragraph("All of these links are public and open without any login. The site home page is " + link(SITE) + ".", small))
 
 # ---------------------------------------------------------------- 1 inspiration
 story.append(Paragraph("1. Inspiration", h1))
@@ -95,8 +96,8 @@ story.append(Paragraph(
 story.append(Paragraph(
     "Our clock keeps both ideas and changes one. <b>The hands show how far each person is from home</b>, not which category they are in: 12 o'clock means home, "
     "and the farther away someone is, the farther their hand sweeps around the dial. <b>The moving pictures sit on the outside of the clock face</b>, in "
-    "round screens beside the dial, each looping a short real video of its person. The case is our own family grandfather clock "
-    "(a Howard Miller triple-weight moon-phase model), gutted of its original movement, weights and pendulum.", body))
+    "round screens beside the dial, each looping a short real video of its person. The case is not a family heirloom. It is a grandfather clock that Caleb found "
+    "(a Howard Miller triple-weight moon-phase model), which we are gutting of its original movement, weights and pendulum.", body))
 
 # ---------------------------------------------------------------- 2 mapping
 story.append(Paragraph("2. How distance becomes a hand angle", h1))
@@ -162,7 +163,7 @@ story.append(Paragraph("Dial, hands and side screens, from the 3D viewer.", smal
 
 story.append(Paragraph("5. Case", h1))
 story.append(Paragraph(
-    "A basic outline taken from the reference photos of the family grandfather clock: a plinth, a hollow trunk, an arched hood "
+    "A basic outline taken from the reference photos of the grandfather clock Caleb found: a plinth, a hollow trunk, an arched hood "
     "with a broken swan-neck pediment and finial, and an arched dial plate. The original movement, weights and pendulum come out. "
     "The motor stack runs straight back from the dial, and the dial's brass corner pieces "
     "can be reused around a new chapter ring. The outline is a rough shape, about 2 m tall and 495 mm deep (sized to hold the motor stack), not measured from the real case.", body))

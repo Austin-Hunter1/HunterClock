@@ -1,0 +1,983 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Weasley Clock Hardware Plan</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Libre+Franklin:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root{
+    --ground:#F7F3EA;
+    --surface:#FFFFFF;
+    --surface-sunken:#F0E9DA;
+    --ink:#2B2419;
+    --muted:#8A7C68;
+    --line:#DED2BC;
+    --accent:#A8672B;
+    --accent-ink:#6F4419;
+    --accent-2:#3E6470;
+    --accent-2-ink:#2C4950;
+    --good:#4F7A4A;
+    --warn:#B0562A;
+    --shadow: 0 1px 2px rgba(43,36,25,0.06), 0 6px 20px -8px rgba(43,36,25,0.12);
+  }
+
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#1A150F;
+      --surface:#231D15;
+      --surface-sunken:#2C2418;
+      --ink:#EEE4D2;
+      --muted:#A5977E;
+      --line:#3C3222;
+      --accent:#E1974F;
+      --accent-ink:#F3C489;
+      --accent-2:#7FB0BE;
+      --accent-2-ink:#A9D2DD;
+      --good:#7FB36F;
+      --warn:#E28A54;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 28px -10px rgba(0,0,0,0.5);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#1A150F;
+    --surface:#231D15;
+    --surface-sunken:#2C2418;
+    --ink:#EEE4D2;
+    --muted:#A5977E;
+    --line:#3C3222;
+    --accent:#E1974F;
+    --accent-ink:#F3C489;
+    --accent-2:#7FB0BE;
+    --accent-2-ink:#A9D2DD;
+    --good:#7FB36F;
+    --warn:#E28A54;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 28px -10px rgba(0,0,0,0.5);
+  }
+
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    background:var(--ground);
+    color:var(--ink);
+    font-family:'Libre Franklin', system-ui, sans-serif;
+    font-size:16px;
+    line-height:1.6;
+  }
+  ::selection{ background:var(--accent); color:var(--surface); }
+
+  .page{
+    max-width:880px;
+    margin:0 auto;
+    padding:56px 28px 120px;
+  }
+
+  h1,h2,h3{
+    font-family:'Fraunces', Georgia, serif;
+    font-weight:600;
+    text-wrap:balance;
+    margin:0;
+  }
+
+  header.doc-head{
+    padding-bottom:32px;
+    border-bottom:1px solid var(--line);
+    margin-bottom:48px;
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--accent-ink);
+    margin:0 0 14px;
+  }
+  h1.title{
+    font-size:clamp(32px, 5vw, 44px);
+    letter-spacing:-0.01em;
+  }
+  .dek{
+    margin:14px 0 0;
+    max-width:62ch;
+    color:var(--muted);
+    font-size:17px;
+  }
+  .meta-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:24px;
+    margin-top:28px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+  }
+  .meta-item{ display:flex; flex-direction:column; gap:4px; }
+  .meta-item .k{ color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; font-size:10.5px; }
+  .meta-item .v{ color:var(--ink); font-weight:500; }
+
+  section{ margin-bottom:56px; }
+  section > .eyebrow{ margin-bottom:8px; }
+  h2.sec-title{
+    font-size:26px;
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    padding-left:14px;
+    border-left:3px solid var(--accent);
+    margin-bottom:18px;
+  }
+  h2.sec-title .n{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:14px;
+    color:var(--muted);
+    font-weight:400;
+  }
+  p{ margin:0 0 14px; max-width:70ch; }
+  p:last-child{ margin-bottom:0; }
+  .lede{ color:var(--muted); }
+
+  a{ color:var(--accent-ink); }
+
+  .callout{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:18px 20px;
+    box-shadow:var(--shadow);
+    margin:18px 0;
+  }
+  .callout .callout-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--accent-2-ink);
+    margin-bottom:8px;
+    display:block;
+  }
+
+  /* Diagram */
+  .diagram-wrap{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:20px;
+    box-shadow:var(--shadow);
+    overflow-x:auto;
+  }
+
+  /* Comparison cards */
+  .compare{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px;
+    margin:20px 0;
+  }
+  @media (max-width:640px){ .compare{ grid-template-columns:1fr; } }
+  .opt{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:18px 20px;
+    box-shadow:var(--shadow);
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .opt.recommended{ border-color:var(--accent); }
+  .opt h3{ font-size:17px; display:flex; align-items:center; gap:8px; }
+  .pill{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    padding:3px 9px;
+    border-radius:999px;
+    background:var(--accent);
+    color:var(--surface);
+  }
+  .opt ul{ margin:0; padding-left:18px; }
+  .opt li{ margin-bottom:6px; }
+  .opt li::marker{ color:var(--muted); }
+
+  /* Tables */
+  .table-scroll{ overflow-x:auto; border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow); }
+  table{
+    width:100%;
+    border-collapse:collapse;
+    background:var(--surface);
+    font-size:14.5px;
+    min-width:560px;
+  }
+  caption{
+    text-align:left;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:var(--accent-2-ink);
+    background:var(--surface-sunken);
+    padding:10px 16px;
+    border-bottom:1px solid var(--line);
+  }
+  th, td{
+    text-align:left;
+    padding:10px 16px;
+    border-bottom:1px solid var(--line);
+    vertical-align:top;
+  }
+  thead th{
+    font-family:'IBM Plex Mono', monospace;
+    font-weight:500;
+    font-size:11px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+  tbody tr:last-child td{ border-bottom:none; }
+  td.num, th.num{ text-align:right; font-variant-numeric:tabular-nums; font-family:'IBM Plex Mono', monospace; white-space:nowrap; }
+  tfoot td{ font-weight:600; border-top:2px solid var(--line); border-bottom:none; }
+  tfoot td.num{ font-family:'IBM Plex Mono', monospace; }
+
+  .module-block{ margin-bottom:28px; }
+  .module-block:last-child{ margin-bottom:0; }
+  .module-head{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
+  .module-head h3{ font-size:17px; }
+  .module-total{ font-family:'IBM Plex Mono', monospace; font-size:13px; color:var(--muted); }
+
+  /* Phase timeline */
+  .phases{ display:flex; flex-direction:column; }
+  .phase{
+    display:grid;
+    grid-template-columns:64px 1fr;
+    gap:18px;
+    padding:18px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .phase:last-child{ border-bottom:none; }
+  .phase-n{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    color:var(--accent-ink);
+    padding-top:2px;
+  }
+  .phase-n .num{ display:block; font-size:22px; font-weight:500; color:var(--ink); line-height:1; margin-bottom:4px; }
+  .phase h3{ font-size:16.5px; margin-bottom:4px; }
+  .phase .goal{ color:var(--muted); font-size:13.5px; margin-bottom:8px; }
+  .phase .done{ color:var(--good); font-size:12.5px; font-family:'IBM Plex Mono', monospace; }
+
+  /* Risk / decisions list */
+  .decisions{ display:flex; flex-direction:column; gap:14px; }
+  .decision{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-left:3px solid var(--accent-2);
+    border-radius:8px;
+    padding:14px 18px;
+    box-shadow:var(--shadow);
+  }
+  .decision .q{ font-weight:600; margin-bottom:4px; }
+  .decision .why{ color:var(--muted); font-size:14px; }
+
+  footer{
+    margin-top:64px;
+    padding-top:20px;
+    border-top:1px solid var(--line);
+    color:var(--muted);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+  }
+
+  code{ font-family:'IBM Plex Mono', monospace; font-size:0.92em; background:var(--surface-sunken); padding:1px 5px; border-radius:4px; }
+</style>
+
+<div class="page">
+
+  <header class="doc-head">
+    <p class="eyebrow">Hardware Plan — Rev. 15</p>
+    <h1 class="title">The Weasley Clock</h1>
+    <p class="dek">A location-tracking grandfather clock, rebuilt around a single 6-shaft concentric hub and six circular per-hand displays. This document turns the Python/MQTT concept into a buildable parts list and build sequence.</p>
+    <div class="meta-row">
+      <div class="meta-item"><span class="k">Household</span><span class="v">6 hands — Evan, Becky, Austin, Caleb, Elijah, Micah</span></div>
+      <div class="meta-item"><span class="k">Home baseline</span><span class="v">Minnetonka, MN</span></div>
+      <div class="meta-item"><span class="k">Scale</span><span class="v">log₁₀, 1 km → 20,015 km</span></div>
+      <div class="meta-item"><span class="k">Drafted</span><span class="v">2026-09-07</span></div>
+    </div>
+  </header>
+
+  <section id="architecture">
+    <p class="eyebrow">System Architecture</p>
+    <h2 class="sec-title">How a location becomes a hand movement</h2>
+    <p class="lede">Four stages, each independently testable: location sources feed a broker, the broker feeds the controller, and the controller drives two kinds of hardware that don't talk to each other directly. All 6 family members carry Apple devices, so Find My is the primary source — Home Assistant's iCloud integration is known to be occasionally flaky (Apple rate-limits and 2FA re-prompts break it every few weeks), so keep OwnTracks installed as a silent fallback on at least Becky's, Evan's, and Elijah's phones, the three that move most and would be missed first if Find My drops.</p>
+    <div class="diagram-wrap">
+<pre class="mermaid">
+flowchart LR
+  A["Family phones (Apple)<br/>Find My, OwnTracks fallback"] --> B["Home Assistant<br/>person &amp; device_tracker"]
+  B -->|state changes| C["MQTT broker<br/>Mosquitto"]
+  C --> D["Controller<br/>Raspberry Pi 4"]
+  D -->|USB serial| E["Motor MCU<br/>Pico + PIO step gen"]
+  E --> F["6-shaft hub<br/>hollow-shaft NEMA17/23"]
+  D -->|WiFi / MQTT| G["6x display nodes<br/>ESP32 + round GC9A01"]
+</pre>
+    </div>
+    <p style="margin-top:14px">The Pi never bit-bangs a stepper and never renders a portrait itself — it only does Haversine math and routing. That split is what keeps six simultaneous channels from stalling each other. See the <a href="circuit-diagram.html" target="_blank">circuit diagram</a> for the actual pin-level wiring.</p>
+  </section>
+
+  <section id="mechanical-decision">
+    <p class="eyebrow">The Load-Bearing Decision</p>
+    <h2 class="sec-title">One face with six hands, or six faces</h2>
+    <p class="lede">The show clock pivots every hand from one center point — which means concentric shafts. That's the first thing this plan had to rule in or out, because it caps how far the design can scale.</p>
+    <div class="compare">
+      <div class="opt recommended">
+        <h3>Concentric shaft stack <span class="pill">Selected</span></h3>
+        <ul>
+          <li>Authentic single-dial look, closest to the reference — and now that the original movement is being gutted entirely, the true center pivot and the full trunk cavity are both available</li>
+          <li>6 hollow-shaft motors daisy-chained along the depth axis, each one's bore wide enough for every shaft behind it to pass through</li>
+          <li>Off-the-shelf hollow-shaft bore tops out around 10-11mm at NEMA17 — the outer 2 stages need to step up to NEMA23 to clear the cascade</li>
+          <li>One jam anywhere in the stack can bind every hand behind it — accepted, since reliability mattered less than the authentic look</li>
+        </ul>
+      </div>
+      <div class="opt">
+        <h3>Six independent gauges</h3>
+        <ul>
+          <li>Each person gets their own small dial, stepper, and pointer — mechanically identical to the software prototype's clock face, just built six times</li>
+          <li>A failed or offline motor affects one person, not the whole clock</li>
+          <li>Off-the-shelf 28BYJ-48 + ULN2003 pairs, no custom shafts</li>
+          <li>Considered and costed (see below), but set aside in favor of the single-pivot look</li>
+        </ul>
+      </div>
+    </div>
+    <p>The plan below builds around a single 6-shaft hub at the original dial's center, with two side-mounted panels handling the moving-portrait display for all 6 hands.</p>
+  </section>
+
+  <section id="fit-check">
+    <p class="eyebrow">Verify Fit</p>
+    <h2 class="sec-title">Will the hub actually fit inside this cabinet?</h2>
+    <p class="lede">From the photo, this is a Howard Miller triple-weight, moon-phase case — the same family as models like the Robinson (23"W × 13.5"D) and Stewart (23"W × 14"D), up through larger ones like the J.H. Miller (31"W × 20.75"D). Exterior depth across that range runs roughly 13.5"–20.75" (343–527mm).</p>
+    <div class="callout">
+      <span class="callout-label">The math</span>
+      The hub's estimated depth is ~300–320mm (11.8"–12.6"). Against a 13.5"–14" case — the shallower, more common end of this family — that's tight: subtract front and back panel thickness and the hood alone likely doesn't clear it. That's not fatal, since the whole trunk is already being gutted and is typically as deep or deeper than the hood (it has to be, to clear the pendulum's swing) — the motor chain can run down through the seat-board opening into the trunk rather than staying entirely behind the dial plate. But "likely fits if it spills into the trunk" isn't the same as confirmed, and the hub is the single largest, least-returnable line in the budget.
+    </div>
+    <p>Three measurements settle it. The motors are already ordered (StepperOnline order 330093), so these decide whether the stack fits as planned or needs adapting:</p>
+    <div class="decisions">
+      <div class="decision">
+        <div class="q">1. Hood depth</div>
+        <div class="why">From the back of the dial plate to the interior back panel, measured where the dial currently sits.</div>
+      </div>
+      <div class="decision">
+        <div class="q">2. Trunk depth</div>
+        <div class="why">Interior front-to-back depth of the gutted trunk cavity below the seat board, where the chain would continue if it doesn't fit in the hood alone.</div>
+      </div>
+      <div class="decision">
+        <div class="q">3. Narrowest interior width</div>
+        <div class="why">The tightest point the motor chain has to pass through — NEMA23's 57mm (2.24") square frame is the widest single obstacle in the stack.</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="concentric-cost">
+    <p class="eyebrow">How The Decision Was Costed</p>
+    <h2 class="sec-title">Six independent gauges vs. a concentric hub</h2>
+    <p class="lede">A hollow-shaft concentric hub is mechanically real, but the shafts have to nest, and each motor's bore has to be wide enough for every shaft behind it to pass through. That cascade is what separates a 3-shaft chain from a 6-shaft one: 3 levels fit comfortably inside a single NEMA17 frame's ~10mm bore ceiling; 6 levels don't, and force the front stages up to a bulkier NEMA23 frame. The table below is what the decision was made on — kept here as the record, with the selected column marked.</p>
+    <div class="table-scroll">
+      <table style="min-width:680px;">
+        <thead>
+          <tr>
+            <th>Spec</th>
+            <th>Six independent gauges</th>
+            <th>Two 3-shaft chains</th>
+            <th>Single 6-shaft hub <span class="pill" style="margin-left:6px;">Selected</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Motor / frame</td>
+            <td>28BYJ-48 (unipolar)</td>
+            <td>6× NEMA17 hollow-shaft, ~8–11mm bore</td>
+            <td>4× NEMA17 + 2× NEMA23 hollow-shaft (front stages need &gt;11mm bore)</td>
+          </tr>
+          <tr>
+            <td class="num" style="text-align:left">Motors + drivers</td>
+            <td class="num">$18 <span style="color:var(--muted); font-weight:400;">(6× motor+ULN2003 pair)</span></td>
+            <td class="num">$120 <span style="color:var(--muted); font-weight:400;">(motors $102 + 6× A4988 $18)</span></td>
+            <td class="num">$203 <span style="color:var(--muted); font-weight:400;">(motors $108 + DHL/duty $81 + A4988 10-pack $14)</span></td>
+          </tr>
+          <tr>
+            <td>Shaft hardware</td>
+            <td class="num">— <span style="color:var(--muted); font-weight:400;">bare motor shaft, no stack</span></td>
+            <td class="num">$36 <span style="color:var(--muted); font-weight:400;">(tubing $20 + 4 bearings $16)</span></td>
+            <td class="num">$84 <span style="color:var(--muted); font-weight:400;">(K&amp;S telescoping brass, 2 kits, $60 + 5 bearings + 1 bushing $24)</span></td>
+          </tr>
+          <tr>
+            <td>Dial faces + pointers</td>
+            <td class="num">$18</td>
+            <td class="num">$18</td>
+            <td class="num">$18</td>
+          </tr>
+          <tr>
+            <td>Depth behind face</td>
+            <td>~30mm <span style="color:var(--muted);">(one motor body)</span></td>
+            <td>~150mm per chain <span style="color:var(--muted);">(3 motors nose-to-tail)</span></td>
+            <td>~300–320mm <span style="color:var(--muted);">(6 motors nose-to-tail, 2 of them longer NEMA23 bodies)</span></td>
+          </tr>
+          <tr>
+            <td style="color:var(--muted);">— with the movement removed</td>
+            <td colspan="3" class="num" style="text-align:center; color:var(--good); font-family:'IBM Plex Mono', monospace;">Not a differentiator — the full trunk cavity fits all three</td>
+          </tr>
+          <tr>
+            <td>Failure isolation</td>
+            <td>One motor per person — a jam affects only that hand</td>
+            <td>A jam can drag its 2 chain-mates; 2 chains means at most 3 hands affected at once</td>
+            <td>A jam anywhere can drag the whole stack — all 6 hands share one failure domain</td>
+          </tr>
+          <tr>
+            <td>Visual result</td>
+            <td>Six visibly separate small dials</td>
+            <td>Two natural pivot points, close enough to read as one face</td>
+            <td>One true pivot point — closest to the reference</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr><td>Estimated total</td><td class="num">≈ $36</td><td class="num">≈ $174</td><td class="num">≈ $305</td></tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="callout">
+      <span class="callout-label">Decision — single 6-shaft hub</span>
+      The original movement, weights, and pendulum are coming out entirely, which removed the depth objection to the single hub: instead of a few inches behind the dial plate, the whole trunk cavity (previously filled by the weight-drop channels) is available, so all three layouts fit. With depth off the table, the remaining trade was cost (~75% more than independent gauges, once the whole system is priced — see below) against failure isolation (a jam anywhere in the hub's stack can affect all 6 hands, versus at most 3 in a two-chain layout, versus 1 in independent gauges) — and the single-pivot look won. Gutting the face also means the dial's ornate brass spandrels and corner filigree can likely be reused around a new chapter ring machined for the log-distance scale, keeping the antique character even with an entirely new mechanism behind it.
+    </div>
+    <p style="margin-top:14px; font-size:13.5px; color:var(--muted);">The hub column's motor prices and shipping come from StepperOnline invoice 330093 (placed 2026-10-06); bearing prices are single-unit estimates from current listings, so treat that part as the rougher estimate.</p>
+  </section>
+
+  <section id="display-alternative">
+    <p class="eyebrow">Display Architecture</p>
+    <h2 class="sec-title">Six screens, not two</h2>
+    <p class="lede">This decision has flipped twice: six round per-hand screens, then two larger rectangular side panels (the 1.28" round screens read small against the rebuilt dial), and now back to six — the specific round display sourced (AITRIP's GC9A01 3-pack) settled it, since buying the actual part made the size trade-off feel less important than getting a screen next to every hand again. The cost and complexity trade-offs from evaluating the two-panel option are kept below for the record.</p>
+    <div class="table-scroll">
+      <table style="min-width:680px;">
+        <thead>
+          <tr>
+            <th>Spec</th>
+            <th>Six round display nodes <span class="pill" style="margin-left:6px;">Selected</span></th>
+            <th>Two rectangular HDMI panels</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Hardware, per screen</td>
+            <td>ESP32 + 1.28" round GC9A01 TFT + bezel</td>
+            <td>7–10.1" HDMI IPS panel + rectangular frame</td>
+          </tr>
+          <tr>
+            <td>Driven by</td>
+            <td>Its own ESP32, over WiFi/MQTT</td>
+            <td>The Pi's own dual micro-HDMI output — no per-screen compute at all</td>
+          </tr>
+          <tr>
+            <td>Wiring</td>
+            <td>None — WiFi only</td>
+            <td>2 HDMI cables routed through the cabinet (only practical because there are just 2)</td>
+          </tr>
+          <tr>
+            <td class="num" style="text-align:left">Display hardware cost</td>
+            <td class="num">$82 <span style="color:var(--muted); font-weight:400;">(6× ESP32+TFT+bezel+cable)</span></td>
+            <td class="num">$124–212 <span style="color:var(--muted); font-weight:400;">(2× panel $100–180 + cables $12 + frames $24–30)</span></td>
+          </tr>
+          <tr>
+            <td>Power/hub cost</td>
+            <td class="num">$17 <span style="color:var(--muted); font-weight:400;">(10-port USB charging strip)</span></td>
+            <td class="num">$8–10</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;">Display module total</td>
+            <td class="num" style="font-weight:600;">$99</td>
+            <td class="num" style="font-weight:600;">$132–222</td>
+          </tr>
+          <tr>
+            <td>Software</td>
+            <td>6 firmware images to build and flash independently</td>
+            <td>One Python/Kivy or browser-kiosk app on the Pi, split across 2 windows</td>
+          </tr>
+          <tr>
+            <td>Failure isolation</td>
+            <td>A crashed node stalls only that person's screen; others keep looping</td>
+            <td>A Pi crash or reboot blanks both screens at once</td>
+          </tr>
+          <tr>
+            <td>Spatial pairing</td>
+            <td>Each screen sits right beside the hand it corresponds to</td>
+            <td>Screens are grouped on the sides, decoupled from any single hand</td>
+          </tr>
+          <tr>
+            <td>Screen size vs. dial</td>
+            <td>1.28" reads small next to a rebuilt full-size chapter ring</td>
+            <td>7–10.1" is proportionate to the face</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout">
+      <span class="callout-label">Decision — six round display nodes</span>
+      Back to the original layout. Six round screens are also the cheaper option ($99 vs. $132–222 for two panels), and pairing a specific product (AITRIP's GC9A01 3-pack, 6 screens from two packs) with each of the 6 hands keeps the spatial pairing and per-node failure isolation the two-panel layout traded away. The two-panel comparison above stays in the doc as the record of why it was tried and what it would have cost.
+    </div>
+  </section>
+
+  <section id="full-system-cost">
+    <p class="eyebrow">Whole-Build Cost</p>
+    <h2 class="sec-title">Every option, fully loaded</h2>
+    <p class="lede">The actuation layout only changes one part of the build. Controller, networking, the six display nodes, power, and fabrication cost the same no matter which motor topology drives the hands — so the honest comparison is that shared cost plus each option's actuation delta.</p>
+    <div class="table-scroll">
+      <table style="min-width:680px;">
+        <thead>
+          <tr>
+            <th>Line</th>
+            <th>Six independent gauges</th>
+            <th>Two 3-shaft chains</th>
+            <th>Single 6-shaft hub <span class="pill" style="margin-left:6px;">Selected</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Controller &amp; networking <span style="color:var(--muted); font-weight:400;">(Pi 4, Pico, SD card, optional HA host)</span></td>
+            <td class="num" colspan="3" style="text-align:center;">$119–159 — identical across all three</td>
+          </tr>
+          <tr>
+            <td>Display nodes ×6 <span style="color:var(--muted); font-weight:400;">(ESP32 + AITRIP GC9A01 + bezel)</span></td>
+            <td class="num" colspan="3" style="text-align:center;">$82 — identical across all three</td>
+          </tr>
+          <tr>
+            <td>Power &amp; wiring</td>
+            <td class="num" colspan="3" style="text-align:center;">$74 — identical across all three</td>
+          </tr>
+          <tr>
+            <td>Fabrication &amp; mounting</td>
+            <td class="num" colspan="3" style="text-align:center;">$40 — identical across all three</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;">Shared subtotal</td>
+            <td class="num" colspan="3" style="text-align:center; font-weight:600;">$315–355</td>
+          </tr>
+          <tr>
+            <td>Actuation hardware <span style="color:var(--muted); font-weight:400;">(from the comparison above)</span></td>
+            <td class="num">$36</td>
+            <td class="num">$174</td>
+            <td class="num">$305</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td>Estimated full-build total</td>
+            <td class="num">$351–391</td>
+            <td class="num">$489–529</td>
+            <td class="num">$620–660</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="callout">
+      <span class="callout-label">The build: single 6-shaft hub + six round displays, ≈ $620–660</span>
+      This total keeps the corrected Raspberry Pi 4 price ($100, not the earlier $65 estimate) and the corrected motor supply voltage (12V, not 5V — see the Power &amp; Wiring module below, caught while drawing the circuit diagram). Software (Home Assistant, Mosquitto, the Python controller, Pico firmware, 6 ESP32 display firmware images) adds no material cost beyond the SD card and optional HA host already counted. Amazon items are priced from the 2026-10-05 cart. The hub motors are priced from StepperOnline invoice 330093, including $81 of DHL Express shipping and estimated import duty.
+    </div>
+  </section>
+
+  <section id="bom">
+    <p class="eyebrow">Bill of Materials</p>
+    <h2 class="sec-title">Parts, by module</h2>
+    <p class="lede">Costs are ballpark USD for a single unit of each line — check current listings before ordering. Quantities already account for all 6 family members where relevant.</p>
+
+    <div class="module-block">
+      <div class="module-head"><h3>Central controller &amp; networking</h3><span class="module-total">~$119–159</span></div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Item</th><th>Qty</th><th>Notes</th><th class="num">Est.</th></tr></thead>
+          <tbody>
+            <tr><td>Raspberry Pi 4 (4GB)</td><td class="num">1</td><td>Runs the Python controller, Mosquitto, and now the two-panel display app</td><td class="num">$100</td></tr>
+            <tr><td>KEYESTUDIO Raspberry Pi Pico starter kit</td><td class="num">1</td><td>Plain RP2040 Pico (not a W) with loose headers to solder on and a micro-USB cable. Dedicated motor MCU, talks to the Pi over USB serial</td><td class="num">$9.45</td></tr>
+            <tr><td>MicroSD card, 32GB</td><td class="num">1</td><td>A1-rated, for the Pi's OS</td><td class="num">$10</td></tr>
+            <tr><td>USB cable, Pi ↔ Pico</td><td class="num">1</td><td>Included with the Pico kit. Must be data-capable; buy a $6 cable only if it turns out to be charge-only</td><td class="num">$0</td></tr>
+            <tr><td>Home Assistant host</td><td class="num">optional</td><td>Reuse an existing Pi/NAS; runs the Find My integration and the OwnTracks fallback</td><td class="num">$0–40</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="module-block">
+      <div class="module-head"><h3>Central 6-shaft hub</h3><span class="module-total">~$305 total</span></div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Item</th><th>Qty</th><th>Notes</th><th class="num">Est.</th></tr></thead>
+          <tbody>
+            <tr><td>NEMA17 hollow-shaft stepper (17HS13-1504H)</td><td class="num">4</td><td>Levels 3–6 — Elijah (sturdiest of the four), then Caleb, Austin, and Micah on the more wobble-prone inner levels. Confirmed via StepperOnline's own datasheet: <strong>4mm bore</strong>, 8mm shaft OD — this is their only NEMA17 hollow-shaft option, not a range to pick from. $15.93 each on the invoice.</td><td class="num">$64</td></tr>
+            <tr><td>NEMA23 hollow-shaft stepper (23HS18-2004H)</td><td class="num">2</td><td>Outer, sturdiest 2 stages (levels 1–2) — reserved for Becky and Evan, the most frequent movers. Confirmed via datasheet: <strong>8mm bore</strong>, 12mm shaft OD. $22.22 each on the invoice.</td><td class="num">$44</td></tr>
+            <tr><td>Motor shipping and duty</td><td class="num">1</td><td>DHL Express $53.22 + estimated import duty $32.45 − $5.00 coupon. The hollow-shaft motors ship from China, and the duty is the invoice's own estimate</td><td class="num">$81</td></tr>
+            <tr><td>Photect stepper driver modules with heat sinks, 10-pack</td><td class="num">1 pack</td><td>Six drivers, one per motor, plus spares; step/dir pins run to the Pico, not the Pi. The cart title is cut off, so confirm the boards are marked A4988 when they arrive</td><td class="num">$14</td></tr>
+            <tr><td>K&amp;S Round Brass Telescopic Tubing Assortment (Small, 12pc)</td><td class="num">2</td><td>Off-the-shelf, in stock — <a href="https://ksmetals.com/products/brtasstsm" target="_blank">ksmetals.com/products/brtasstsm</a>, 1/16"–13/32" OD in 1/32" steps, .014" wall, 12" lengths; 2 kits for length margin + spares (one bought in Order 1, the second only if needed)</td><td class="num">$60</td></tr>
+            <tr><td>Radial/thrust bearings + 1 transition bushing</td><td class="num">5+1</td><td>One per clean telescoping interface, plus a small guide bushing at the one interface that isn't a clean K&amp;S step (see below)</td><td class="num">$24</td></tr>
+            <tr><td>Printed dial face, 12→6 log scale</td><td class="num">1</td><td>Single chapter ring for all 6 hands, sized to the original dial opening</td><td class="num">$12</td></tr>
+            <tr><td>Pointer hands, 6 lengths</td><td class="num">6</td><td>3D-printed, staggered radii so tips never overlap even pointing the same direction</td><td class="num">$6</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top:10px; font-size:13.5px; color:var(--muted);">Shaft assignment: Becky and Evan take the 2 NEMA23 (sturdiest) levels; Elijah takes the sturdiest NEMA17 level (level 3) — the three who change position most often get the three stiffest shafts. Caleb, Austin, and Micah take the remaining, more wobble-prone NEMA17 levels (4–6).</p>
+      <p style="margin-top:6px; font-size:13.5px; color:var(--muted);"><strong>Tube sizing, corrected against the confirmed 4mm/8mm bores:</strong> level 1 needs no tube — its hand mounts directly to Motor 1's shaft. Levels 2–3 (passing only through the 8mm NEMA23 bores) use 9/32" and 1/4" (7.1mm and 6.4mm OD) — a clean adjacent K&amp;S step, comfortably clear of 8mm. Levels 4–6 (which additionally have to pass through Motor 3's 4mm bore) drop to 1/8", 3/32", and 1/16" (3.2mm, 2.4mm, 1.6mm OD) — also a clean run of adjacent K&amp;S steps, comfortably clear of 4mm. Between tube 3 and tube 4 there's a real, unavoidable jump (6.4mm down to 3.2mm) that skips several K&amp;S sizes — because tube 4 has to clear a 4mm bore that tube 3 never sees. That's not a telescoping fit; it's the one interface that needs a small guide bushing (ID matched to tube 4, pressed into the back of tube 3 or Motor 3's bore) rather than a snug slip fit. Every other interface is a standard consecutive K&amp;S pair. Level 6 still needs the 2-kit length margin noted above.</p>
+    </div>
+
+    <div class="module-block">
+      <div class="module-head"><h3>Per-person display module <span style="color:var(--muted); font-weight:400;">× 6</span></h3><span class="module-total">~$82 total</span></div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Item</th><th>Qty</th><th>Notes</th><th class="num">Est. (×6)</th></tr></thead>
+          <tbody>
+            <tr><td><a href="https://www.amazon.com/gp/product/B0BQJ8BTVB" target="_blank">Aideepen ESP32 30-pin dev board, 6-pack</a></td><td class="num">1 pack</td><td>ESP-WROOM-32 with a CP2102 USB-serial chip, micro-USB. One per display; each renders locally and subscribes to its own MQTT topic, with no wiring back to the Pi</td><td class="num">$26</td></tr>
+            <tr><td><a href="https://www.amazon.com/gp/product/B0GJ3ZK92C" target="_blank">AITRIP GC9A01 1.28" round TFT, 3-pack</a></td><td class="num">2 packs</td><td>240×240, 4-wire SPI — 2 packs of 3 give exactly 6, and each pack includes dupont wires (they should be female-to-female; confirm on arrival)</td><td class="num">$32</td></tr>
+            <tr><td>Printed bezel / diffuser ring</td><td class="num">6</td><td>Frames the round screen against the dial</td><td class="num">$12</td></tr>
+            <tr><td>SABRENT 6-pack micro-USB cables, 22 AWG (3× 3 ft + 3× 1 ft)</td><td class="num">1 pack</td><td>One cable per node. Use the 1 ft cables on the nodes nearest the charging strip and the 3 ft cables on the far ones. Micro-USB, not USB-C. Price is an estimate</td><td class="num">$12</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top:10px; font-size:13.5px; color:var(--muted);">Content is real recorded footage of each person, not stylized animation. A short (3–5s), low-frame-rate loop at 240×240 fits comfortably in the ESP32's onboard flash alongside firmware — add a $3–4 microSD module per node only if you want longer or higher-quality clips. Each clip needs to be cropped to a circle, resized, and re-encoded as a frame sequence (MJPEG or GIF) before flashing; that prep is folded into Phase 3 below. See the <a href="circuit-diagram.html" target="_blank">circuit diagram</a> for exactly how each ESP32 wires to its display.</p>
+    </div>
+
+    <div class="module-block">
+      <div class="module-head"><h3>Power &amp; wiring</h3><span class="module-total">~$74</span></div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Item</th><th>Qty</th><th>Notes</th><th class="num">Est.</th></tr></thead>
+          <tbody>
+            <tr><td>12V 2A supply, motor bank</td><td class="num">1</td><td>Corrected from an earlier 5V estimate — the A4988 driver needs 8–35V on VMOT to run at all; 12V is the standard choice for NEMA17/23. 5.5 × 2.1 mm plug. Steppers get their own rail — never share the Pi's 5V. If the supply sags when several motors move at once, move to 3–5 A</td><td class="num">$8</td></tr>
+            <tr><td>California JOS DC jack adapters, 2.1 × 5.5 mm (2 female + 2 male)</td><td class="num">1 pack</td><td>The female jack connects the 12V supply's plug to the +12V and ground buses that feed every driver's VMOT and GND; the male plugs are spares. Confirm the supply is center-positive before wiring</td><td class="num">$4</td></tr>
+            <tr><td>LitStar 5V 3A USB-C supply, Pi</td><td class="num">1</td><td>Matches the Pi 4 spec; has an inline on/off switch</td><td class="num">$10</td></tr>
+            <tr><td>10-port USB charging strip (6× USB-A + 4× USB-C), 50 W</td><td class="num">1</td><td>Feeds the 6 ESP32 display nodes from its USB-A ports. Power only, which is all the nodes need</td><td class="num">$17</td></tr>
+            <tr><td>Terminal blocks, JST leads, hookup wire</td><td class="num">assorted</td><td>Common logic ground between Pi, Pico, and the A4988s' VDD/GND is the one wiring rule that isn't optional — the 12V motor rail's GND ties into this same common ground, only its 12V itself stays isolated to VMOT</td><td class="num">$15</td></tr>
+            <tr><td>EPLZON solderable breadboard PCB, 5 pack + 2 mini</td><td class="num">1 pack</td><td>Landing point for the driver boards: two boards with 3 A4988s each, since a 3.5 × 2.05 in board holds 3. Carry +12V and GND with short, thick wire instead of the thin printed rails</td><td class="num">$9</td></tr>
+            <tr><td>Female pin headers, 2.54 mm, 1×8</td><td class="num">12</td><td>Sockets so each A4988 can be swapped without desoldering</td><td class="num">$6</td></tr>
+            <tr><td>Tnisesm electrolytic capacitors, 100 µF 25 V, 20-pack</td><td class="num">1 pack</td><td>Six 100 µF go across VMOT/GND, one at each A4988. Five more in parallel (about 500 µF) take the place of the 470 µF bulk cap at the 12 V supply. Pololu calls for at least 47 µF to protect the drivers from voltage spikes. Added from the pin-level circuit diagram</td><td class="num">$5</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="module-block">
+      <div class="module-head"><h3>Fabrication &amp; mounting</h3><span class="module-total">~$40</span></div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Item</th><th>Qty</th><th>Notes</th><th class="num">Est.</th></tr></thead>
+          <tbody>
+            <tr><td>1/4" plywood or acrylic backing panel</td><td class="num">1</td><td>Carries all 6 gauge + display modules as one removable unit</td><td class="num">$20</td></tr>
+            <tr><td>Brass-finish spray or gilt pen</td><td class="num">1</td><td>Bezels and dial numerals, to match the cabinet's existing hardware</td><td class="num">$10</td></tr>
+            <tr><td>French cleat or picture-hanging brackets</td><td class="num">1 set</td><td>Mounts the panel without modifying the original cabinet</td><td class="num">$10</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="table-scroll" style="margin-top:22px;">
+      <table>
+        <tfoot>
+          <tr><td>Estimated total</td><td class="num">≈ $603–643</td></tr>
+        </tfoot>
+      </table>
+    </div>
+  </section>
+
+  <section id="gpio-budget">
+    <p class="eyebrow">Interconnect Budget</p>
+    <h2 class="sec-title">Why the motor logic lives on its own microcontroller</h2>
+    <p class="lede">Each A4988 driver needs a STEP and a DIR pin, so six bipolar steppers need 12 GPIO lines with precise, jitter-free pulse timing — six simultaneous step streams is more than a general-purpose CPU core can guarantee while also handling MQTT and display traffic.</p>
+    <div class="callout">
+      <span class="callout-label">Recommendation</span>
+      Offload all 6 motors to a Raspberry Pi Pico, using the RP2040's PIO state machines to generate each motor's step pulses in hardware — one PIO program per motor, running independently of whatever the Pico's two CPU cores are doing. The Pi sends one short command per person (<code>{person, target_step}</code>) over USB serial; the Pico owns all real-time step timing. The 6 ESP32 display nodes need no wiring back to the Pi at all — they join the same WiFi network and subscribe to MQTT topics like <code>clock/display/evan</code> directly.
+    </div>
+    <p>This also isolates failure domains cleanly: a Pico crash stalls the hands but not the displays or the location pipeline; a WiFi hiccup stalls one display node, not the motors. Within the hub itself, a jam in one shaft can still drag its neighbors — that's the trade-off the single-pivot look was chosen over. Exact GPIO pin assignments for all 6 STEP/DIR pairs are in the <a href="circuit-diagram.html" target="_blank">circuit diagram</a>.</p>
+  </section>
+
+  <section id="phases">
+    <p class="eyebrow">Build Sequence</p>
+    <h2 class="sec-title">Five phases, each one testable on its own</h2>
+    <div class="phases">
+      <div class="phase">
+        <div class="phase-n"><span class="num">0</span>done</div>
+        <div>
+          <h3>Software prototype</h3>
+          <p class="goal">Haversine + log-scale mapping, validated against real coordinates for all 6 family members.</p>
+          <p class="done">✓ Complete — birthday_clock.m</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-n"><span class="num">1</span></div>
+        <div>
+          <h3>Single-channel proof of concept</h3>
+          <p class="goal">One NEMA17 hollow-shaft stepper + one ESP32/AITRIP display + MQTT round trip, with Find My publishing one real family member's GPS through Home Assistant. Proves the pipeline and the PIO step-generation approach before cutting any tubing. Also the moment to measure the actual cabinet (see "Verify Fit" above) before the hub is built.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-n"><span class="num">2</span></div>
+        <div>
+          <h3>Hub fabrication &amp; six-channel actuation</h3>
+          <p class="goal">Machine or source the 6-level graduated tube stack, fit bearings between levels, mount all 6 motors nose-to-tail in the gutted trunk. Pico firmware drives all 6 from serial commands; Pi-side controller maps each MQTT topic to a person and a target angle.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-n"><span class="num">3</span></div>
+        <div>
+          <h3>Display nodes &amp; portraits</h3>
+          <p class="goal">6 ESP32 nodes on WiFi, each looping a real recorded clip of its person (cropped to a circle, resized to 240×240, re-encoded as a short frame sequence) and switching state (home / traveling / unknown) on MQTT command.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-n"><span class="num">4</span></div>
+        <div>
+          <h3>Face rebuild &amp; mounting</h3>
+          <p class="goal">Original movement, weights, and pendulum removed. New chapter ring machined for the log-distance scale, reusing the dial's original brass spandrels and corner filigree; hub and display bezels mounted in the gutted trunk.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-n"><span class="num">5</span></div>
+        <div>
+          <h3>Integration &amp; polish</h3>
+          <p class="goal">Home Assistant wired in for aggregation, offline/stale-location handling, and a calibration pass on the log-scale constants for each family member's actual travel range.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="open-decisions">
+    <p class="eyebrow">Yours to Decide</p>
+    <h2 class="sec-title">One thing left to confirm</h2>
+    <div class="decisions">
+      <div class="decision">
+        <div class="q">Confirm the cabinet fits the hub</div>
+        <div class="why">See "Verify Fit" above — hood depth, trunk depth, and narrowest interior width. Everything else (location source, shaft assignment, portrait content, display architecture, budget) is resolved and reflected in the plan above.</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="purchasing-plan">
+    <p class="eyebrow">Ready To Buy</p>
+    <h2 class="sec-title">Purchasing plan — five staged orders</h2>
+    <p class="lede">Same parts as the BOM above, sequenced so the cheapest order proves the whole pipeline first. The priciest, least-returnable parts, the hollow-shaft motors sized to this specific hub, have already been ordered (Order 2), ahead of the cabinet measurement.</p>
+
+    <div class="phases">
+      <div class="phase">
+        <div class="phase-n"><span class="num">1</span>buy now</div>
+        <div>
+          <h3>Prototype kit</h3>
+          <p class="goal">Validates the full pipeline end to end — Find My → HA → MQTT → Pi → Pico → one motor, and Pi → MQTT → one display. It's also now the whole electronics order: the Amazon cart already holds the drivers, all 6 ESP32s and screens, the power supplies, the capacitors and the driver boards, so only the hub motors, tubing and fabrication parts wait on later orders. Also gets you one K&amp;S tubing kit to dry-fit against the cabinet at the gate below.</p>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Item</th><th>Qty</th><th>Source</th><th class="num">Est.</th></tr></thead>
+              <tbody>
+                <tr><td>Raspberry Pi 4 (4GB)</td><td class="num">1</td><td>Pi reseller / Amazon</td><td class="num">$100</td></tr>
+                <tr><td>KEYESTUDIO Raspberry Pi Pico starter kit</td><td class="num">1</td><td>Amazon — includes headers and a micro-USB cable</td><td class="num">$9.45</td></tr>
+                <tr><td>MicroSD card, 32GB</td><td class="num">1</td><td>Amazon</td><td class="num">$10</td></tr>
+                <tr><td>12V 2A supply + 5V 3A USB-C supply</td><td class="num">1 each</td><td>Amazon — 12V for the motor rail, 5V for the Pi, both needed from day one</td><td class="num">$17.98</td></tr>
+                <tr><td>California JOS DC jack adapters, 2.1 × 5.5 mm</td><td class="num">1 pack</td><td>Amazon — use a female jack for the 12V supply</td><td class="num">$3.97</td></tr>
+                <tr><td>NEMA17 hollow-shaft stepper</td><td class="num">1</td><td>StepperOnline — on order 330093, with the hub motors</td><td class="num">$15.93</td></tr>
+                <tr><td>Photect stepper driver modules with heat sinks, 10-pack</td><td class="num">1 pack</td><td>Amazon — all 6 drivers plus spares</td><td class="num">$13.99</td></tr>
+                <tr><td>Aideepen ESP32 30-pin dev board, 6-pack</td><td class="num">1 pack</td><td>Amazon — covers all 6 display nodes; 1 used for the prototype</td><td class="num">$25.99</td></tr>
+                <tr><td>AITRIP GC9A01 1.28" round TFT, 3-pack</td><td class="num">2 packs</td><td>Amazon — all 6 screens</td><td class="num">$31.98</td></tr>
+                <tr><td>Tnisesm 100 µF 25 V capacitors, 20-pack</td><td class="num">1 pack</td><td>Amazon — 6 for the drivers, 5 in parallel as the bulk cap</td><td class="num">$4.99</td></tr>
+                <tr><td>10-port USB charging strip</td><td class="num">1</td><td>Amazon — feeds the 6 ESP32 nodes</td><td class="num">$16.99</td></tr>
+                <tr><td>EPLZON solderable breadboard PCB, 5 + 2 mini</td><td class="num">1 pack</td><td>Amazon — driver boards, 3 A4988s on each of 2 boards</td><td class="num">$8.99</td></tr>
+                <tr><td>Female pin headers, 2.54 mm, 1×8</td><td class="num">12</td><td>Amazon — A4988 sockets</td><td class="num">$6</td></tr>
+                <tr><td>Breadboard, small terminal blocks</td><td class="num">1 kit</td><td>Amazon</td><td class="num">$8</td></tr>
+                <tr><td>K&amp;S Round Brass Telescopic Tubing Assortment (Small)</td><td class="num">1</td><td><a href="https://ksmetals.com/products/brtasstsm" target="_blank">ksmetals.com</a> — one kit now; the second only if it is needed</td><td class="num">$30</td></tr>
+              </tbody>
+              <tfoot><tr><td colspan="3">Order 1 subtotal</td><td class="num">≈ $304.26</td></tr></tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-n"><span class="num">·</span>gate</div>
+        <div>
+          <h3>Measure the cabinet — no purchase</h3>
+          <p class="goal">Hood depth, trunk depth, narrowest interior width (see "Verify Fit" above), plus a physical dry-fit of Order 1's test tube length against the real opening. The hollow-shaft motors (Order 2) were ordered before this gate, so it now decides whether the stack fits as planned or needs adapting, and it still gates the mechanical build in Order 3.</p>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-n"><span class="num">2</span>ordered</div>
+        <div>
+          <h3>Hub motors</h3>
+          <p class="goal">The single priciest and least-returnable line in the whole build, placed on 2026-10-06 as StepperOnline order 330093 by DHL Express from China, together with the prototype motor from Order 1 ($188.83 for the whole invoice). It went in ahead of the cabinet check, so a failed measurement now means adapting the design rather than avoiding the purchase.</p>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Item</th><th>Qty</th><th>Source</th><th class="num">Est.</th></tr></thead>
+              <tbody>
+                <tr><td>NEMA17 hollow-shaft stepper</td><td class="num">3</td><td>StepperOnline</td><td class="num">$47.79</td></tr>
+                <tr><td>NEMA23 hollow-shaft stepper</td><td class="num">2</td><td>StepperOnline</td><td class="num">$44.44</td></tr>
+                <tr><td>DHL Express shipping + estimated import duty − coupon</td><td class="num">1</td><td>StepperOnline — covers the whole invoice, including Order 1's prototype motor</td><td class="num">$80.67</td></tr>
+              </tbody>
+              <tfoot><tr><td colspan="3">Order 2 subtotal</td><td class="num">≈ $172.90</td></tr></tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-n"><span class="num">3</span></div>
+        <div>
+          <h3>Hub mechanical build</h3>
+          <p class="goal">No longer waiting on custom machining — an off-the-shelf telescoping brass tube assortment covers all 5 nested levels, so this order can go out the same week as Order 2, or even earlier. Bearings and 3D-printed parts still round it out.</p>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Item</th><th>Qty</th><th>Source</th><th class="num">Est.</th></tr></thead>
+              <tbody>
+                <tr><td>K&amp;S Round Brass Telescopic Tubing Assortment (Small), second kit</td><td class="num">1</td><td><a href="https://ksmetals.com/products/brtasstsm" target="_blank">ksmetals.com</a> — in stock, no machining needed; for length margin and spares, so skip it if the first kit is enough</td><td class="num">$30</td></tr>
+                <tr><td>Radial/thrust bearings + 1 transition bushing</td><td class="num">5+1</td><td>McMaster-Carr / Amazon</td><td class="num">$24</td></tr>
+                <tr><td>Printed dial face, 12→6 log scale</td><td class="num">1</td><td>Laser-cut locally or 3D-printed</td><td class="num">$12</td></tr>
+                <tr><td>Pointer hands, 6 lengths</td><td class="num">6</td><td>3D-printed</td><td class="num">$6</td></tr>
+              </tbody>
+              <tfoot><tr><td colspan="3">Order 3 subtotal</td><td class="num">≈ $72</td></tr></tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-n"><span class="num">4</span>anytime</div>
+        <div>
+          <h3>Remaining display nodes</h3>
+          <p class="goal">Not gated by the cabinet measurement at all — this can be ordered whenever, including in parallel with Order 2 or 3, since it only depends on Order 1 having proven the display pipeline works. All 6 screens and ESP32s are already in Order 1, so this is just the bezels and cables.</p>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Item</th><th>Qty</th><th>Source</th><th class="num">Est.</th></tr></thead>
+              <tbody>
+                <tr><td>Printed bezel / diffuser ring</td><td class="num">6</td><td>3D-printed (all 6, including Order 1's prototype)</td><td class="num">$12</td></tr>
+                <tr><td>SABRENT 6-pack micro-USB cables, 22 AWG (3× 3 ft + 3× 1 ft)</td><td class="num">1 pack</td><td>Amazon — measure the run from the charging strip to each node first to decide which get the 1 ft cables</td><td class="num">$12</td></tr>
+              </tbody>
+              <tfoot><tr><td colspan="3">Order 4 subtotal</td><td class="num">≈ $24</td></tr></tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-n"><span class="num">5</span>final</div>
+        <div>
+          <h3>Power, wiring &amp; fabrication</h3>
+          <p class="goal">Final-assembly hardware — bought last, once the hub and both panels are built and ready to mount together into the gutted cabinet.</p>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Item</th><th>Qty</th><th>Source</th><th class="num">Est.</th></tr></thead>
+              <tbody>
+                <tr><td>Terminal blocks, JST leads, hookup wire</td><td class="num">assorted</td><td>Amazon / hardware store</td><td class="num">$15</td></tr>
+                <tr><td>1/4" plywood or acrylic backing panel</td><td class="num">1</td><td>Hardware store</td><td class="num">$20</td></tr>
+                <tr><td>Brass-finish spray or gilt pen</td><td class="num">1</td><td>Hardware/craft store</td><td class="num">$10</td></tr>
+                <tr><td>French cleat or picture-hanging brackets</td><td class="num">1 set</td><td>Hardware store</td><td class="num">$10</td></tr>
+              </tbody>
+              <tfoot><tr><td colspan="3">Order 5 subtotal</td><td class="num">≈ $55</td></tr></tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-scroll" style="margin-top:22px;">
+      <table>
+        <tbody>
+          <tr><td>Running total through Order 1</td><td class="num">$304.26</td></tr>
+          <tr><td>Running total through Order 2</td><td class="num">$477</td></tr>
+          <tr><td>Running total through Order 3</td><td class="num">$549</td></tr>
+          <tr><td>Running total through Order 4</td><td class="num">$573</td></tr>
+        </tbody>
+        <tfoot>
+          <tr><td>Running total through Order 5 (+ optional $0–40 HA host)</td><td class="num">≈ $628–668</td></tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="callout">
+      <span class="callout-label">Why staged this way</span>
+      Order 1 is about $304, most of it parts that every later step needs anyway (the Pi, the drivers, the displays and the power supplies), and it proves the PIO step-generation approach and the MQTT round-trip before anything else is committed. Order 2 — $172.90 for the hollow-shaft motors including DHL Express shipping and estimated import duty — was the one purchase sized to an assumption (the cabinet's interior depth) rather than a spec sheet, and it was placed ahead of the cabinet measurement. Order 4 has no dependency and can happen whenever it's convenient.
+    </div>
+  </section>
+
+  <section id="sourcing">
+    <p class="eyebrow">Where To Order</p>
+    <h2 class="sec-title">Sourcing &amp; lead times</h2>
+    <p class="lede">Working backward from November 23 — the real bottleneck is the hollow-shaft motors' stock status, not the everyday electronics or the display panels.</p>
+    <div class="table-scroll">
+      <table style="min-width:720px;">
+        <thead>
+          <tr><th>Order</th><th>Item</th><th>Where</th><th>Typical lead time</th></tr>
+        </thead>
+        <tbody>
+          <tr><td rowspan="6">1</td><td>Raspberry Pi 4 + SD card</td><td>PiShop.us or Adafruit (official resellers) — avoid marketplace sellers at inflated prices</td><td class="num">2–5 business days</td></tr>
+          <tr><td>12V + 5V supplies, jack adapters, Pico kit, A4988 10-pack, capacitors</td><td>Amazon — all in the cart</td><td class="num">Cart shows delivery Oct 7–9</td></tr>
+          <tr><td>1× NEMA17 hollow-shaft (prototype)</td><td><a href="https://www.omc-stepperonline.com" target="_blank">omc-stepperonline.com</a> — on order 330093 with the hub motors, shipped from China</td><td class="num">Same DHL Express shipment as Order 2</td></tr>
+          <tr><td>Aideepen ESP32 6-pack + 2× AITRIP GC9A01 3-pack + USB charging strip + solderable boards + pin headers</td><td>Amazon — <strong>not</strong> AliExpress</td><td class="num">2–5 days (domestic) vs. 2–4+ weeks if China-direct</td></tr>
+          <tr><td>Breadboard kit + 1× K&amp;S tubing kit</td><td>Amazon (breadboard); <a href="https://ksmetals.com/products/brtasstsm" target="_blank">ksmetals.com</a> (tubing)</td><td class="num">1–4 days (Amazon); 2–5 days, mail order (K&amp;S)</td></tr>
+          <tr><td>—</td><td style="font-style:italic; color:var(--muted);">Gate: measure cabinet + gut original movement</td><td style="font-style:italic; color:var(--muted);">No purchase</td><td class="num">Do this week</td></tr>
+          <tr><td rowspan="2">2</td><td>3× NEMA17 (17HS13-1504H) + 2× NEMA23 (23HS18-2004H) hollow-shaft</td><td>omc-stepperonline.com — ordered 2026-10-06 as order 330093. Bore confirmed correct via official datasheet (4mm / 8mm respectively); ships from China</td><td class="num"><span style="color:var(--warn); font-weight:600;">DHL Express, which often takes about a week for a small parcel. The invoice gives no delivery date, so check the tracking</span></td></tr>
+          <tr><td colspan="3" style="font-style:italic; color:var(--muted);">The bore/design question is resolved (see the hub BOM's tube-sizing note), and stock and express shipping are settled by the order itself. What's left is the delivery date and the cabinet-fit check</td></tr>
+          <tr><td rowspan="3">3</td><td>K&amp;S Round Brass Telescopic Tubing Assortment, second kit (if needed)</td><td><a href="https://ksmetals.com/products/brtasstsm" target="_blank">ksmetals.com</a> — in stock, off-the-shelf, no machining</td><td class="num">2–5 days, mail order</td></tr>
+          <tr><td>5× bearings + 1 bushing</td><td><a href="https://www.mcmaster.com" target="_blank">McMaster-Carr</a></td><td class="num">1–2 days — fastest item in the whole plan</td></tr>
+          <tr><td>Dial face + 6 pointer hands</td><td>3D print (own printer, local library/makerspace) or laser-cut locally</td><td class="num">1–3 days (own printer) or 1–2 weeks (mail-in service)</td></tr>
+          <tr><td>4</td><td>6× bezel + 6× USB cable</td><td>Amazon — order any time, doesn't wait on the gate</td><td class="num">2–5 days, or 1–3 days for 3D-printed bezels</td></tr>
+          <tr><td>5</td><td>Wiring, backing panel, brass finish, brackets</td><td>Amazon / local hardware store</td><td class="num">1–3 days, or same day locally</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="font-size:18px; margin:32px 0 14px;">Backward schedule from Nov 23</h3>
+    <div class="phases">
+      <div class="phase">
+        <div class="phase-n"><span class="num">Wk 1</span>9/22</div>
+        <div>
+          <h3>Gut the movement, measure, place Orders 1 &amp; 4</h3>
+          <p class="goal">Pull the original movement/weights/pendulum this week — it's free, has no lead time, and is what makes the cabinet measurement trustworthy. Take the 3 measurements, place Order 1 immediately, and place Order 4 in parallel since it isn't gated.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-n"><span class="num">Wk 2</span>9/29</div>
+        <div>
+          <h3>Order 1 arrives; Order 2 is already on its way</h3>
+          <p class="goal">Prototype the motor pipeline while the StepperOnline order ships. The motors were ordered before the cabinet measurement, so take the three measurements as early as you can and adapt the stack if they don't clear.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-n"><span class="num">Wk 3</span>10/6</div>
+        <div>
+          <h3>Order 2 arrives; Order 3 can go out in parallel</h3>
+          <p class="goal">Since the tube stack is now an off-the-shelf order, there's no reason to wait for the motors — place Order 3 the same week as Order 2, in parallel, not after it. Once both are in hand, dry-fit the tubes onto the real motor shafts.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-n"><span class="num">Wk 4–5</span>10/13</div>
+        <div>
+          <h3>Hub assembly</h3>
+          <p class="goal">Tubes, bearings, and motors come together into the actual stack; dial face and pointers should be done or close to it in parallel. Order 5 should already be on hand by now.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-n"><span class="num">Wk 6–7</span>10/27</div>
+        <div>
+          <h3>Mount, wire, rebuild the face</h3>
+          <p class="goal">Hub and all 6 displays go into the gutted cabinet; new chapter ring installed around the reused spandrels; Pico firmware and MQTT topics wired up end to end.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-n"><span class="num">Wk 8–9</span>11/10</div>
+        <div>
+          <h3>Buffer &amp; calibration</h3>
+          <p class="goal">~2 weeks of slack before the 11/23 deadline for whatever went wrong, plus final calibration of the log-scale constants against real family travel patterns.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <span class="callout-label">The honest risk assessment</span>
+      The tube stack is an off-the-shelf part and the motor bore mismatch is solved with one small guide bushing — both confirmed against real specs. Reverting to six displays keeps the per-node display pipeline (6 ESP32 firmware images over WiFi/MQTT) that Phase 1 already proves with a single node, so there's no new software risk on the critical path either. What's left is the cabinet-fit check and the delivery date. The motors are ordered (StepperOnline 330093, DHL Express from China, $188.83 including shipping and estimated duty), so the highest-leverage move now is the three cabinet measurements, which decide whether the stack fits as planned.
+    </div>
+  </section>
+
+  <footer>
+    Weasley Clock — Hardware Plan Rev. 16 · Minnetonka, MN baseline · 6-shaft hub, six display nodes
+  </footer>
+
+</div>
+
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+</script>
+
+</body></html>
