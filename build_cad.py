@@ -96,7 +96,7 @@ CASE_WALL = 15.0
 COLORS = {"Becky": "#4F7A4A", "Elijah": "#3E6470", "Caleb": "#A8672B",
           "Austin": "#8A4B6B", "Micah": "#B0562A", "Evan": "#5B5EA6"}
 WALNUT = "#6B4426"
-MOTOR_GREY = "#5A544C"
+MOTOR_GREY = "#8C857A"
 
 
 def tube(od, wall, z0, z1):

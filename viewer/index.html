@@ -44,11 +44,11 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 <header>
   <h1>Weasley Clock CAD</h1>
-  <div class="hint">Drag to rotate, scroll to zoom, right-drag to pan. Dimensions are placeholders.</div>
+  <div class="hint">Drag to rotate, scroll to zoom, right-drag to pan. Case and hand dimensions are placeholders. Motors are the vendor models.</div>
   <div class="bar" id="views">
     <button data-v="front">Full case</button>
     <button data-v="hood">Dial and screens</button>
-    <button data-v="drive">Drive column</button>
+    <button data-v="drive">Motor stack</button>
     <button data-v="side">Side</button>
     <button id="caseBtn" aria-pressed="false">Hide case</button>
   </div>
@@ -99,7 +99,7 @@ bg(); size();
 const VIEWS = {
   front: [[0, -300, 2600], [0, -300, 0]],
   hood:  [[450, 150, 800], [0, 100, 0]],
-  drive: [[450, -250, 650], [0, -250, -60]],
+  drive: [[650, 260, -200], [0, 0, -200]],
   side:  [[2200, -300, 100], [0, -300, 0]],
 };
 function go(k) {
