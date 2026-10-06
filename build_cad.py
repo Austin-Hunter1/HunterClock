@@ -16,7 +16,7 @@ against real parts before machining anything.
 Coordinates: +z toward the viewer, +y up, dial centre at the origin,
 dial front surface at z = 0.
 
-Outputs (in ./cad_out): weasley_clock.step, weasley_clock.stl
+Outputs (in ./cad_out): weasley_clock.step, .stl, .glb (colored; opens in any 3D viewer)
 """
 
 import math
@@ -218,7 +218,8 @@ if __name__ == "__main__":
     os.makedirs("cad_out", exist_ok=True)
     assembly = build()
     assembly.save("cad_out/weasley_clock.step")
-    cq.exporters.export(assembly.toCompound(), "cad_out/weasley_clock.stl")
+    cq.exporters.export(assembly.toCompound(), "cad_out/weasley_clock.stl", tolerance=0.3, angularTolerance=0.3)
+    assembly.save("cad_out/weasley_clock.glb", exportType="GLTF")
     for n in NAMES:
         print(f"{n:7s} hand angle {hand_angle_deg(n):6.1f} deg")
-    print("wrote cad_out/weasley_clock.step, cad_out/weasley_clock.stl")
+    print("wrote cad_out/weasley_clock.step, .stl, .glb")
