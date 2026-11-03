@@ -1,0 +1,196 @@
+# Weasley Clock configuration -- EXAMPLE.
+#
+#   cp config/clock.example.yaml config/clock.yaml
+#
+# config/clock.yaml is gitignored. This example file is committed, so it must
+# never contain a password, a token or a WiFi key. Secrets live in .env and are
+# referenced here only by the name of their environment variable.
+#
+# clockd --sim reads this file directly when config/clock.yaml does not exist,
+# so a fresh checkout runs with no setup.
+
+version: 1
+
+# Free-text note about where the clock physically is. Not used for anything but
+# the UI header and the diagnostic bundle.
+site: "not yet installed"
+
+# 12 o'clock on the dial. Everything is measured from here, and nothing about
+# the site is hard-coded anywhere else -- change these two numbers and the whole
+# clock re-points. Default is Minnetonka, MN, from birthday_clock.m.
+home:
+  name: "Minnetonka, MN"
+  lat: 44.9109
+  lon: -93.5017
+
+# The six hands. `level` is the hub level from docs/hardware-plan.html and fixes
+# the Pico channel (channel = level - 1) and therefore the STEP/DIR pins from
+# docs/circuit-diagram.html:
+#
+#   level 1  Becky   NEMA23  STEP GP2   DIR GP3
+#   level 2  Evan    NEMA23  STEP GP4   DIR GP5
+#   level 3  Elijah  NEMA17  STEP GP6   DIR GP7
+#   level 4  Caleb   NEMA17  STEP GP8   DIR GP9
+#   level 5  Austin  NEMA17  STEP GP10  DIR GP11
+#   level 6  Micah   NEMA17  STEP GP12  DIR GP13
+#
+# To move a person to a different hand, change `level` -- nothing else.
+#
+#   color             matches build_cad.py so the UI, the 3D model and the
+#                     printed hands agree
+#   invert            flip if the hand turns anticlockwise (reversed coil pair);
+#                     cheaper than resoldering
+#   zero_offset_deg   added before commanding, for a hand zeroed slightly off 12
+#   steps_per_rev     200 full steps x 1/16 microstepping; the hands mount
+#                     straight onto the motor shafts, so there is no gearing
+#   fallback_lat/lon  shown before any fix has ever arrived, so a cold start has
+#                     something on the dial
+#   owntracks         matches the MQTT topic owntracks/<user>/<device>;
+#                     device "+" means any device of that user
+people:
+  - name: Becky
+    level: 1
+    color: "#4F7A4A"
+    steps_per_rev: 3200
+    invert: false
+    zero_offset_deg: 0.0
+    fallback_lat: 44.9109
+    fallback_lon: -93.5017
+    owntracks: { user: becky, device: "+" }
+    hass_entity: device_tracker.becky_iphone
+
+  - name: Evan
+    level: 2
+    color: "#5B5EA6"
+    steps_per_rev: 3200
+    fallback_lat: 52.2297
+    fallback_lon: 21.0122
+    owntracks: { user: evan, device: "+" }
+    hass_entity: device_tracker.evan_iphone
+
+  - name: Elijah
+    level: 3
+    color: "#3E6470"
+    steps_per_rev: 3200
+    fallback_lat: 44.9537
+    fallback_lon: -93.0900
+    owntracks: { user: elijah, device: "+" }
+    hass_entity: device_tracker.elijah_iphone
+
+  - name: Caleb
+    level: 4
+    color: "#A8672B"
+    steps_per_rev: 3200
+    fallback_lat: 41.8661
+    fallback_lon: -88.1070
+    owntracks: { user: caleb, device: "+" }
+    hass_entity: device_tracker.caleb_iphone
+
+  - name: Austin
+    level: 5
+    color: "#8A4B6B"
+    steps_per_rev: 3200
+    fallback_lat: 40.0150
+    fallback_lon: -105.2705
+    owntracks: { user: austin, device: "+" }
+    hass_entity: device_tracker.austin_iphone
+
+  - name: Micah
+    level: 6
+    color: "#B0562A"
+    steps_per_rev: 3200
+    fallback_lat: 44.5646
+    fallback_lon: -123.2620
+    owntracks: { user: micah, device: "+" }
+    hass_entity: device_tracker.micah_iphone
+
+# All speeds and accelerations are in microsteps and microsteps/s^2.
+# 3200 microsteps = one full turn, so 800 steps/s is a quarter turn per second.
+# speed_limit and accel_limit cap both the UI sliders and the firmware.
+motion:
+  max_speed: 800.0
+  accel: 1600.0
+  speed_limit: 2000.0
+  accel_limit: 8000.0
+  assist_speed: 200.0       # the slow speed used by zeroing and the test sweep
+  idle_disable: false       # true releases the drivers at rest: no holding
+                            # torque, cooler drivers, hands can be nudged by hand
+  watchdog_s: 10.0          # Pico stops the hands if the Pi stops pinging
+  pos_interval_ms: 200      # how often the Pico reports positions while moving
+
+# Which fixes to believe, and when to stop believing them.
+filtering:
+  max_accuracy_m: 2000.0    # reject a fix whose accuracy circle is bigger
+  deadband_deg: 0.5         # do not move the hand for less than this
+  min_move_interval_s: 5.0  # shortest gap between two moves of one hand
+  stale_after_s: 21600.0    # 6 h with no fix -> stale (hand holds, UI flags it)
+  max_age_s: 86400.0        # reject a fix whose own timestamp is older
+
+sources:
+  # Earlier in this list wins when two sources both have a recent fix.
+  priority: [manual, owntracks, generic_mqtt, hass]
+
+  owntracks:
+    enabled: true
+    topic_prefix: owntracks   # owntracks/<user>/<device>
+
+  generic_mqtt:
+    enabled: true
+    topic_prefix: clock/location   # clock/location/<person>
+
+  # Home Assistant REST polling. Optional, lowest priority, off by default.
+  # The long-lived token comes from the environment, never from this file.
+  hass:
+    enabled: false
+    url: "http://homeassistant.local:8123"
+    token_env: HASS_TOKEN
+    poll_interval_s: 120.0
+    verify_tls: true
+
+  # Fake locations and distances set from the UI's Simulate page.
+  manual:
+    enabled: true
+    default_ttl_s: 3600.0
+
+mqtt:
+  enabled: true
+  host: localhost
+  port: 1883
+  username: clock
+  password_env: MQTT_PASSWORD   # set in .env; never written here
+  client_id: clockd
+  base_topic: clock
+  keepalive_s: 30
+  tls: false
+
+serial:
+  port: /dev/ttyACM0            # the Pico over USB; COM3 or similar on Windows
+  baudrate: 115200
+  reconnect_interval_s: 2.0
+  command_timeout_s: 3.0
+  ping_interval_s: 3.0
+  max_retries: 2
+
+web:
+  host: "0.0.0.0"               # fine because the Pi is only reachable over
+                                # Tailscale -- see docs/RUNBOOK.md
+  port: 8080
+  # PBKDF2 hash of the shared UI password. Generate with:
+  #   python -m clockd.hashpw
+  # and paste the one-line result here. Leaving it empty means the UI refuses
+  # to start outside --sim mode.
+  password_hash: ""
+  secret_key_env: CLOCK_SECRET_KEY
+  session_hours: 720.0
+  title: "Weasley Clock"
+
+# Optional outbound alerting (P2). URLs come from the environment.
+alerts:
+  enabled: false
+  healthchecks_url_env: HEALTHCHECKS_URL
+  ntfy_url_env: NTFY_URL
+  interval_s: 300.0
+
+paths:
+  var_dir: var                  # last fixes, zero offsets, verified flags
+  log_dir: var/log
