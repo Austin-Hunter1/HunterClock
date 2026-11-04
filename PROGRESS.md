@@ -10,10 +10,10 @@ has ever run it.
 
 ---
 
-## Status: 2026-11-04, push 6
+## Status: 2026-11-04, push 8
 
-**P0 is complete. P1 is complete except the ESP32 node firmware. P2 is partly
-done.** 470 tests pass; `ruff check .` is clean.
+**P0 and P1 are complete. P2 is done except the fallback hotspot.**
+512 tests pass; `ruff check .` is clean; the ESP32 firmware compiles.
 
 ---
 
@@ -72,6 +72,26 @@ fixed; it now reads the YAML properly and runs clean.
 `docs/clock-face.html` is a standalone live dial (also published as an artifact)
 whose mapping is checked against `clockd.geo` to three decimals.
 
+### Display nodes (P1)
+`firmware/esp32/` — LovyanGFX for the GC9A01, PubSubClient, JPEGDEC. Config from
+`data/config.json` on LittleFS, so the six boards are identical and only that
+file differs. Subscribes to the retained `clock/display/<person>`; publishes
+`clock/node/<person>/status`; OTA; captive-portal setup AP.
+
+**This one compiles.** PlatformIO was available, so `pio run` was actually run:
+1 005 549 bytes of a 1 310 720 byte app partition, 69 020 bytes of static RAM.
+The LittleFS image builds too, with a real 1.08 MB loop in it.
+
+`tools/make_loop.py` and `tools/loopfile.py` — ffmpeg crops a video to a circle,
+scales to 240×240 at 10 fps and packs the JPEGs into one `.wcl` container that
+`src/loopfile.h` reads. Run end to end here on a generated clip.
+
+### Alerts (P2)
+`controller/clockd/alerts.py` — healthchecks.io as a dead-man's switch and
+ntfy.sh for push notifications, with debounce and per-condition cooldown so a
+flapping USB cable is one message rather than hundreds. Both off by default and
+configured by environment variable only.
+
 ### Extras beyond the spec
 * A udev rule so a replug that moves the Pico to `ttyACM1` does not break it.
 * `--sim-time-scale`, so a 60 s scenario can be watched in 6 s.
@@ -95,6 +115,8 @@ whose mapping is checked against `clockd.geo` to three decimals.
 | `test_eventlog.py` | 22 | filtering, bounds, file output |
 | `test_integration.py` | 23 | the controller against the simulated Pico |
 | `test_api.py` | 61 | auth, pages, actions, config save, diagnostics |
+| `test_loopfile.py` | 22 | the `.wcl` container, byte for byte, and the ffmpeg filter |
+| `test_alerts.py` | 20 | debounce, cooldown, recovery, and the engine's conditions |
 
 Checks worth naming:
 
@@ -106,6 +128,7 @@ Checks worth naming:
 * The diagnostic bundle contains neither a real `MQTT_PASSWORD` nor a password
   hash, while still reporting which variables were set.
 * Live mode with no UI password refuses to start.
+* Ten link up/down cycles in a minute produce **no** alert at all.
 
 ---
 
@@ -138,19 +161,25 @@ hardware was connected in the session that wrote it. Specifically:
 * **Mosquitto with real auth.** The MQTT client is exercised against the
   in-memory broker in tests; `--mqtt-host localhost` works but was not run
   against a password-protected broker.
-* **Anything about the ESP32 display nodes.**
+* **The ESP32 display nodes.** The firmware compiles and the LittleFS image
+  builds, but no board has run it. Specifically unverified: the LovyanGFX panel
+  settings (`invert`, `rgb_order`, 40 MHz SPI), whether the 115 200-byte 240×240
+  sprite actually fits alongside WiFi, MQTT and the JPEG decoder at runtime (the
+  build leaves ~258 KB of heap, so it should, and the firmware says "out of
+  memory" on the panel rather than rendering garbage if it does not), the
+  captive portal, and OTA.
+* **Alert delivery.** The logic is tested against a fake HTTP client; no real
+  request has been made to healthchecks.io or ntfy.sh.
 
 ---
 
 ## Not done
 
-* **ESP32 display firmware** (`firmware/esp32/`) and `tools/make_loop.py` — P1,
-  lowest within P1, not started. The MQTT topics they consume
-  (`clock/display/<person>`) are implemented, retained and tested, so the
-  controller side is ready for them.
-* **Alerts** (healthchecks.io / ntfy) — P2. Config fields exist
-  (`alerts.*_env`); nothing sends.
-* **Fallback hotspot** for on-site setup — P2.
+* **Fallback hotspot on the Pi** for on-site setup — P2, the one remaining
+  item. The ESP32 nodes have their own captive portal; the Pi does not. In
+  practice Tailscale plus two pre-saved WiFi networks covers the same ground,
+  and a hotspot the Pi falls back to is another thing that can go wrong
+  unattended.
 * **Home Assistant source** is written and unit-tested, but has never polled a
   real Home Assistant.
 
@@ -183,6 +212,9 @@ hardware was connected in the session that wrote it. Specifically:
 * **Source on/off switches do not persist.** Switching a source off to test
   something should not quietly survive a restart and leave the clock blind next
   month. The Config page is how you make it permanent.
+* **The loop budget is 1.3 MB, not the spec's 1.5 MB.** Measured from a real
+  build: `default.csv` gives LittleFS 0x160000 = 1 441 792 bytes, so 1.5 MB
+  does not fit. 1.3 MB leaves ~140 KB for `config.json` and block overhead.
 
 ---
 
@@ -197,4 +229,13 @@ hardware was connected in the session that wrote it. Specifically:
   wrapper, so shutting the link down silently sent a motor stop.
 * **Push 5** — the seven-page web UI, scenarios, the `clockd` entry point.
 * **Push 6** — the rest of the test suite (470), clean lint, `deploy/`, the
-  Makefile, and the four docs.
+  Makefile, and the four docs. Running `install.sh` against stubbed system
+  commands found two real bugs: it grepped `port:` and picked up the MQTT port
+  as the serial port, and it wrote a udev rule without creating the directory.
+* **Push 7** — ESP32 display nodes and the frame-loop packer. The real
+  PlatformIO build caught that the spec's "about 1.5 MB" loop budget does not
+  fit: LittleFS gets exactly 0x160000 = 1 441 792 bytes, so a 1.5 MB loop
+  builds and then fails to upload. Also caught that the circular mask was
+  building an alpha channel and then dropping it, since JPEG has no alpha, so
+  the corners were never masked at all.
+* **Push 8** — alerting, with debounce and cooldown; final screenshots.

@@ -121,6 +121,43 @@ Do this monthly, or whenever someone says the clock looks wrong.
    **All to live positions**. If a hand moves on the dial but not in the room,
    that is a mechanical or wiring problem, not software.
 
+### 2.1 Getting told instead of checking
+
+Section 2 is what to do when you remember. Alerting is what tells you when you
+do not. Both are optional, off by default, and set in `.env` (never in
+`config/clock.yaml`, because a ping URL is a credential):
+
+```bash
+# in .env
+HEALTHCHECKS_URL=https://hc-ping.com/your-uuid-here
+NTFY_URL=https://ntfy.sh/weasley-clock-7f3a9c2e
+```
+
+and in `config/clock.yaml`:
+
+```yaml
+alerts:
+  enabled: true
+  interval_s: 300.0
+```
+
+**healthchecks.io** is the dead-man's switch. Make a check with a period of
+10 minutes and a grace of 20, and it emails you when the pings stop. This is
+the only thing that catches a Pi that has lost power, lost its WiFi or hung,
+because in those cases the controller cannot send you anything — it is the
+thing that broke.
+
+**ntfy.sh** tells you *what* broke while the Pi is still alive to say so: the
+Pico link down, a firmware fault, every hand unverified, every person gone
+stale. Pick an unguessable topic name — anyone who knows it can read your
+notifications. Install the ntfy app and subscribe to that topic.
+
+A condition has to hold for a minute before anything is sent, and nothing is
+sent twice about the same thing within fifteen minutes, so a flapping USB cable
+is one message rather than hundreds. You get a single "recovered" message when
+it clears. The System page shows the counters and any condition currently
+active.
+
 ---
 
 ## 3. What each status means
