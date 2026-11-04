@@ -209,6 +209,12 @@ hardware was connected in the session that wrote it. Specifically:
   not saying so costs a clock that is quietly wrong.
 * **Sim mode binds to 127.0.0.1** by default rather than `0.0.0.0`, so a laptop
   demo with no password is not served to the whole network.
+* **Windows is written for, not tested.** The spec asks for `--sim` on Windows.
+  The sim paths avoid Linux-only modules, use `pathlib`, fall back when
+  `loop.add_signal_handler` is missing, and wrap every `/proc` and `/sys` read.
+  But this session ran only on Linux, so Windows is reasoned-about rather than
+  exercised. `make` targets are Linux/macOS only; `docs/TESTING.md` lists the
+  direct equivalents, including that Windows PowerShell 5.1 rejects `&&`.
 * **Source on/off switches do not persist.** Switching a source off to test
   something should not quietly survive a restart and leave the clock blind next
   month. The Config page is how you make it permanent.

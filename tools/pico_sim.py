@@ -10,7 +10,8 @@ Two ways to use it:
 
 * **In process**, which is what ``clockd --sim`` does: build a :class:`SimPico`
   and pump bytes through :meth:`SimPico.write` / :meth:`SimPico.read`.  No
-  serial port, no subprocess, works the same on Windows and Linux.
+  serial port, no subprocess, and written to work the same on Windows
+  and Linux (only Linux exercised so far).
 * **Standalone over stdio**, for poking at it by hand::
 
       python tools/pico_sim.py            # then type JSON lines

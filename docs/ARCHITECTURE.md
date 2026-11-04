@@ -210,8 +210,10 @@ know what to show, instead of a blank screen until someone moves.
 * `--sim-fixtures` zeroes the hands and publishes the reference positions.
 
 The engine, the filters, the state machine, the UI and the protocol are
-identical. It runs on Windows and Linux because the sim paths avoid Linux-only
-modules and use `pathlib` throughout.
+identical. It is written to run on Windows as well as Linux — the sim paths
+avoid Linux-only modules, use `pathlib` throughout, fall back when
+`loop.add_signal_handler` is unavailable, and wrap every `/proc` and `/sys` read
+— though only Linux has actually been exercised; see `docs/TESTING.md`.
 
 This is what makes the UI reviewable in Boulder before the hardware exists, and
 it is what the integration tests drive.

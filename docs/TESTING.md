@@ -4,36 +4,55 @@ Everything here runs with no hardware attached, on Linux, macOS or Windows.
 
 ---
 
-## Quick start
+## Quick start (Linux and macOS)
 
 ```bash
 git clone https://github.com/Austin-Hunter1/HunterClock
 cd HunterClock
 make venv      # creates .venv and installs the controller
-make test      # 470 tests, about a minute
+make test      # the full suite, about a minute
 make lint      # ruff across the whole repo
 make sim       # the UI at http://127.0.0.1:8080
 ```
 
-### Windows
+## Quick start (Windows)
 
-`make` is not available, so run the same things directly. Everything the
-controller does in simulation avoids Linux-only modules and uses `pathlib`, so
-this genuinely works:
+**`make` does not exist on Windows**, so run the same things directly. Every
+`make` target has a one-line Python equivalent; there is nothing Windows cannot
+do here.
+
+Two PowerShell gotchas before you start: Windows PowerShell 5.1 (the one that
+ships with Windows) **rejects `&&`** as a separator — use `;` or separate lines,
+PowerShell 7 accepts both — and paths use backslashes.
 
 ```powershell
-py -3.11 -m venv .venv
+git clone https://github.com/Austin-Hunter1/HunterClock
+cd HunterClock
+py -3 -m venv .venv
 .venv\Scripts\pip install -e "controller[dev]"
-
-cd controller
-..\.venv\Scripts\python -m pytest -q
-
-cd ..
 .venv\Scripts\python -m clockd.cli --sim --sim-fixtures
 ```
 
 Then open `http://127.0.0.1:8080`. There is no login in sim mode unless you set
 `CLOCK_UI_PASSWORD` or a `password_hash`.
+
+To run the tests:
+
+```powershell
+cd controller
+..\.venv\Scripts\python -m pytest -q
+```
+
+`py -3` picks your newest Python. The controller needs 3.11 or newer and pip
+will refuse an older one; `py -0` lists what is installed, and you can then name
+a version explicitly, for example `py -3.12 -m venv .venv`.
+
+> **Honest caveat:** the simulation paths were written for Windows — no
+> Linux-only modules, `pathlib` throughout, a fallback for
+> `loop.add_signal_handler`, and every `/proc` and `/sys` read wrapped so it
+> degrades to "not available here" — but **the session that wrote this ran only
+> on Linux**. Windows is reasoned-about, not exercised. If something breaks,
+> that is a bug worth reporting rather than something you are doing wrong.
 
 ---
 
