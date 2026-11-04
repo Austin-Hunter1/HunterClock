@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import math
 
+import motion
 import pytest
 
-import motion
 from clockd import geo
 
 STEPS_PER_REV = 3200

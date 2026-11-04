@@ -344,9 +344,13 @@ class PicoCore:
         elif self._rest_since_us is None:
             self._rest_since_us = now_us
 
-        if self.idle_disable and not moving and self.mc.enabled:
-            if self._at_rest_for_ms(now_us, self.FLASH_SETTLE_MS):
-                self.mc.set_enable(False)
+        if (
+            self.idle_disable
+            and not moving
+            and self.mc.enabled
+            and self._at_rest_for_ms(now_us, self.FLASH_SETTLE_MS)
+        ):
+            self.mc.set_enable(False)
 
         self._maybe_flash(now_us, moving)
         return events

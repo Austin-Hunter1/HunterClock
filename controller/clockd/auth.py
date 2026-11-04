@@ -40,7 +40,7 @@ def hash_password(password: str, *, iterations: int = ITERATIONS, salt: bytes | 
         raise ValueError("password must not be empty")
     salt = salt or secrets.token_bytes(16)
     digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
-    return "%s$%d$%s$%s" % (
+    return "{}${}${}${}".format(
         _PREFIX,
         iterations,
         base64.b64encode(salt).decode("ascii"),
@@ -83,7 +83,7 @@ def secret_key(env_name: str = "CLOCK_SECRET_KEY") -> str:
 
 def _sign(key: str, payload: bytes) -> str:
     mac = hmac.new(key.encode("utf-8"), payload, hashlib.sha256).digest()
-    return "%s.%s" % (
+    return "{}.{}".format(
         base64.urlsafe_b64encode(payload).decode("ascii").rstrip("="),
         base64.urlsafe_b64encode(mac).decode("ascii").rstrip("="),
     )

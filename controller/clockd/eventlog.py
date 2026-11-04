@@ -200,5 +200,5 @@ class EventLog:
         lines = []
         for event in self.events:
             stamp = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(event.at))
-            lines.append("%s [%s] %s" % (stamp, event.category, event.message))
+            lines.append(f"{stamp} [{event.category}] {event.message}")
         return "\n".join(lines)

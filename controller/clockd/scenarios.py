@@ -75,13 +75,14 @@ async def run_scenario(
         ValueError: when a scenario needs a person and none was given.
     """
     if name not in SCENARIOS:
-        raise KeyError("no scenario named %r" % name)
+        raise KeyError(f"no scenario named {name!r}")
     if SCENARIOS[name]["needs_person"] and not person:
-        raise ValueError("scenario %r needs a person" % name)
+        raise ValueError(f"scenario {name!r} needs a person")
 
     engine.events.action(
-        "scenario started: %s%s over %.0f s"
-        % (SCENARIOS[name]["title"], " (%s)" % person if person else "", seconds)
+        f"scenario started: {SCENARIOS[name]['title']}"
+        + (f" ({person})" if person else "")
+        + f" over {seconds:.0f} s"
     )
     try:
         if name == "evan_flies_home":
@@ -93,11 +94,13 @@ async def run_scenario(
         elif name == "round_trip":
             await _distances(engine, person, ROUND_TRIP_KM, seconds)
         elif name == "commute":
-            await _distances(engine, person, [1.0, 3.0, 12.0, 28.0, 40.0, 28.0, 12.0, 3.0, 1.0], seconds)
+            await _distances(
+            engine, person, [1.0, 3.0, 12.0, 28.0, 40.0, 28.0, 12.0, 3.0, 1.0], seconds
+        )
     except asyncio.CancelledError:
-        engine.events.action("scenario %s cancelled" % name)
+        engine.events.action(f"scenario {name} cancelled")
         raise
-    engine.events.action("scenario finished: %s" % name)
+    engine.events.action(f"scenario finished: {name}")
 
 
 async def _fly_route(engine: Any, slug: str, route: list[tuple], seconds: float) -> None:
@@ -110,7 +113,7 @@ async def _fly_route(engine: Any, slug: str, route: list[tuple], seconds: float)
     step = seconds / max(1, len(route))
     ttl = seconds + 120.0
     for lat, lon, label in route:
-        await engine.set_override(slug, lat=lat, lon=lon, ttl_s=ttl, note="scenario: %s" % label)
+        await engine.set_override(slug, lat=lat, lon=lon, ttl_s=ttl, note=f"scenario: {label}")
         await asyncio.sleep(step)
 
 
@@ -121,7 +124,7 @@ async def _distances(engine: Any, slug: str, distances: list[float], seconds: fl
     ttl = seconds + 120.0
     for distance in distances:
         await engine.set_override(
-            slug, distance_km=distance, ttl_s=ttl, note="scenario: %.0f km" % distance
+            slug, distance_km=distance, ttl_s=ttl, note=f"scenario: {distance:.0f} km"
         )
         await asyncio.sleep(step)
 

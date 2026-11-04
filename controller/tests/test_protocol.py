@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
 import protocol as p
-
+import pytest
 
 # -- framing -----------------------------------------------------------------
 

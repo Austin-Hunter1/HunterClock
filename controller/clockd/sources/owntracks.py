@@ -95,9 +95,9 @@ def parse_owntracks(
 
     data, error = decode_json(payload)
     if error is not None:
-        return ParseResult(error="%s on %s" % (error, topic))
+        return ParseResult(error=f"{error} on {topic}")
     if not isinstance(data, dict):
-        return ParseResult(error="payload on %s is not a JSON object" % topic)
+        return ParseResult(error=f"payload on {topic} is not a JSON object")
 
     kind = data.get("_type")
     if kind != LOCATION_TYPE:
@@ -108,13 +108,13 @@ def parse_owntracks(
     person = config.person_for_owntracks(user, device)
     if person is None:
         return ParseResult(
-            error="no person configured for owntracks user %r device %r" % (user, device)
+            error=f"no person configured for owntracks user {user!r} device {device!r}"
         )
 
     lat = number(data.get("lat"))
     lon = number(data.get("lon"))
     if lat is None or lon is None:
-        return ParseResult(person=person, error="location payload on %s has no lat/lon" % topic)
+        return ParseResult(person=person, error=f"location payload on {topic} has no lat/lon")
 
     timestamp = number(data.get("tst"))
     fix = Fix(
@@ -164,7 +164,7 @@ class OwnTracksSource:
     @property
     def topic_filter(self) -> str:
         """The MQTT filter this source subscribes to."""
-        return "%s/+/+" % self.config.sources.owntracks.topic_prefix.strip("/")
+        return "{}/+/+".format(self.config.sources.owntracks.topic_prefix.strip("/"))
 
     async def start(self, bus: Bus) -> None:
         """Subscribe.  Subscribing even when disabled would waste no bandwidth

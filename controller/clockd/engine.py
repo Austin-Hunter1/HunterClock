@@ -133,7 +133,7 @@ class Engine:
             KeyError: when there is no such person.
         """
         if slug not in self.people:
-            raise KeyError("no person named %r" % slug)
+            raise KeyError(f"no person named {slug!r}")
         return self.people[slug]
 
     # -- lifecycle -------------------------------------------------------
@@ -152,7 +152,7 @@ class Engine:
         base = self.config.mqtt.base_topic.strip("/")
         will = {"online": False, "reason": "last will", "at": None}
         if hasattr(self.bus, "set_will"):
-            self.bus.set_will("%s/system/status" % base, will, retain=True)
+            self.bus.set_will(f"{base}/system/status", will, retain=True)
 
         await self.bus.start()
         for source in self.sources.values():
@@ -196,7 +196,7 @@ class Engine:
 
     def _on_source_error(self, topic: str, reason: str) -> None:
         """A source could not use a payload."""
-        self.events.add("error", "rejected payload on %s: %s" % (topic, reason), topic=topic)
+        self.events.add("error", f"rejected payload on {topic}: {reason}", topic=topic)
 
     async def on_fix(self, slug: str, fix: Fix) -> None:
         """Handle one incoming fix: filter it, store it, maybe move the hand.
@@ -209,7 +209,7 @@ class Engine:
             state = self.state(slug)
             person = self.person(slug)
         except KeyError:
-            self.events.error("fix for unknown person %r" % slug)
+            self.events.error(f"fix for unknown person {slug!r}")
             return
 
         if not person.enabled:
@@ -220,7 +220,7 @@ class Engine:
         if state.override is not None and state.override.active():
             state.last_reject_reason = "override"
             self.events.fix(
-                "%s: fix from %s ignored, manual override is active" % (person.name, fix.source),
+                f"{person.name}: fix from {fix.source} ignored, manual override is active",
                 person=slug,
                 source=fix.source,
             )
@@ -232,7 +232,7 @@ class Engine:
             state.rejected += 1
             state.last_reject_reason = decision.reason
             self.events.fix(
-                "%s: rejected %s fix (%s)" % (person.name, fix.source, decision.detail),
+                f"{person.name}: rejected {fix.source} fix ({decision.detail})",
                 person=slug,
                 reason=decision.reason,
                 source=fix.source,
@@ -245,8 +245,8 @@ class Engine:
         self.store.set_fix(slug, fix.to_dict())
 
         self.events.fix(
-            "%s: %s fix accepted, %.1f km -> %.1f deg"
-            % (person.name, fix.source, state.distance_km or 0.0, state.target_deg or 0.0),
+            f"{person.name}: {fix.source} fix accepted, "
+            f"{state.distance_km or 0.0:.1f} km -> {state.target_deg or 0.0:.1f} deg",
             person=slug,
             source=fix.source,
             distance_km=state.distance_km,
@@ -326,7 +326,7 @@ class Engine:
             await self.link.move(person.channel, target_steps)
         except (LinkError, CommandFailed) as exc:
             state.fault = str(exc)
-            self.events.error("%s: move failed: %s" % (person.name, exc), person=slug)
+            self.events.error(f"{person.name}: move failed: {exc}", person=slug)
             return False
 
         state.fault = None
@@ -335,8 +335,8 @@ class Engine:
         state.last_move_at = self._last_move_at[slug]
         self.store.set_steps(slug, target_steps)
         self.events.action(
-            "%s: hand to %.1f deg (%d microsteps, %s)"
-            % (person.name, geo.wrap360(unwrapped), target_steps, decision.detail),
+            f"{person.name}: hand to {geo.wrap360(unwrapped):.1f} deg "
+            f"({target_steps} microsteps, {decision.detail})",
             person=slug,
             target_deg=state.target_deg,
             target_steps=target_steps,
@@ -377,7 +377,7 @@ class Engine:
         self.store.set_steps(slug, state.target_steps)
         self._last_move_at[slug] = time.time()
         self.events.action(
-            "%s: jog %+.2f deg (%+d microsteps)" % (person.name, degrees, delta_steps),
+            f"{person.name}: jog {degrees:+.2f} deg ({delta_steps:+d} microsteps)",
             person=slug,
             degrees=degrees,
             steps=delta_steps,
@@ -398,7 +398,8 @@ class Engine:
         self.store.set_steps(slug, target_steps)
         self._last_move_at[slug] = time.time()
         self.events.action(
-            "%s: move to %.2f deg (%d microsteps)" % (person.name, geo.wrap360(angle_deg), target_steps),
+            f"{person.name}: move to {geo.wrap360(angle_deg):.2f} deg "
+            f"({target_steps} microsteps)",
             person=slug,
             angle_deg=angle_deg,
             target_steps=target_steps,
@@ -431,8 +432,8 @@ class Engine:
             self.store.set_verified(slug, True, when=state.verified_at)
         self._last_move_at.pop(slug, None)
         self.events.action(
-            "%s: zero set here; hand is now at 12 o'clock%s"
-            % (person.name, " and verified" if verify else ""),
+            f"{person.name}: zero set here; hand is now at 12 o'clock"
+            + (" and verified" if verify else ""),
             person=slug,
         )
         await self.publish_person(slug)
@@ -445,7 +446,7 @@ class Engine:
         state.verified_at = time.time() if verified else None
         self.store.set_verified(slug, bool(verified), when=state.verified_at)
         self.events.action(
-            "%s: marked %s" % (state.name, "verified" if verified else "unverified"),
+            "{}: marked {}".format(state.name, "verified" if verified else "unverified"),
             person=slug,
         )
         await self.publish_person(slug)
@@ -487,7 +488,7 @@ class Engine:
             with contextlib.suppress(LinkError, CommandFailed):
                 await self.move_to_angle(slug, 0.0)
                 moved += 1
-        self.events.action("all hands to 12 o'clock (%d hands)" % moved)
+        self.events.action(f"all hands to 12 o'clock ({moved} hands)")
         return moved
 
     async def resume_live(self) -> int:
@@ -501,7 +502,7 @@ class Engine:
         for slug in self.people:
             if await self.apply_target(slug, force=True):
                 moved += 1
-        self.events.action("all hands to their live positions (%d moved)" % moved)
+        self.events.action(f"all hands to their live positions ({moved} moved)")
         return moved
 
     async def test_sweep(self, slug: str, *, speed: float | None = None) -> None:
@@ -516,7 +517,7 @@ class Engine:
         start = self._current_steps(state)
         full_turn = person.steps_per_rev
         self.events.action(
-            "%s: test sweep, one turn and back at %.0f steps/s" % (person.name, sweep_speed),
+            f"{person.name}: test sweep, one turn and back at {sweep_speed:.0f} steps/s",
             person=slug,
         )
         await self.link.set_params(max_speed=sweep_speed, channel=person.channel)
@@ -530,7 +531,7 @@ class Engine:
             await self.link.set_params(
                 max_speed=self.config.motion.max_speed, channel=person.channel
             )
-        self.events.action("%s: test sweep finished" % person.name, person=slug)
+        self.events.action(f"{person.name}: test sweep finished", person=slug)
 
     async def _await_rest(self, channel: int, timeout_s: float = 180.0) -> None:
         """Wait until one channel stops moving, or the timeout expires."""
@@ -554,7 +555,7 @@ class Engine:
             accel = max(1.0, min(float(accel), limits.accel_limit))
         reply = await self.link.set_params(max_speed=max_speed, accel=accel)
         self.events.action(
-            "motion parameters: speed %s, accel %s" % (max_speed, accel),
+            f"motion parameters: speed {max_speed}, accel {accel}",
             max_speed=max_speed,
             accel=accel,
         )
@@ -610,8 +611,7 @@ class Engine:
         state.source = "manual"
         state.last_seen = time.time()
         self.events.action(
-            "%s: override -> %.1f km (%.1f deg) for %.0f s"
-            % (person.name, distance, angle, ttl),
+            f"{person.name}: override -> {distance:.1f} km ({angle:.1f} deg) for {ttl:.0f} s",
             person=slug,
             distance_km=distance,
             target_deg=angle,
@@ -629,7 +629,7 @@ class Engine:
         person = self.person(slug)
         if state.last_fix is not None:
             self._apply_fix_to_state(state, person, state.last_fix, publish=False)
-        self.events.action("%s: override cleared" % person.name, person=slug)
+        self.events.action(f"{person.name}: override cleared", person=slug)
         await self.apply_target(slug, force=True)
         await self.publish_person(slug)
 
@@ -653,10 +653,10 @@ class Engine:
         """
         settings = getattr(self.config.sources, name, None)
         if settings is None or not hasattr(settings, "enabled"):
-            raise KeyError("no source named %r" % name)
+            raise KeyError(f"no source named {name!r}")
         settings.enabled = bool(enabled)
         self.events.action(
-            "source %s %s" % (name, "enabled" if enabled else "disabled"),
+            "source {} {}".format(name, "enabled" if enabled else "disabled"),
             source=name,
             enabled=enabled,
         )

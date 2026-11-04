@@ -19,6 +19,7 @@ Assistant said "home" would be indistinguishable from a real fix.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import time
@@ -56,10 +57,10 @@ def parse_hass_state(
             person = candidate
             break
     if person is None:
-        return ParseResult(error="no person owns Home Assistant entity %r" % entity_id)
+        return ParseResult(error=f"no person owns Home Assistant entity {entity_id!r}")
 
     if not isinstance(data, dict):
-        return ParseResult(person=person, error="state for %s is not an object" % entity_id)
+        return ParseResult(person=person, error=f"state for {entity_id} is not an object")
 
     attributes = data.get("attributes")
     if not isinstance(attributes, dict):
@@ -70,9 +71,8 @@ def parse_hass_state(
     if lat is None or lon is None:
         return ParseResult(
             person=person,
-            error="%s has no latitude/longitude attributes (state %r); a router- or "
-            "geofence-based tracker cannot drive a hand"
-            % (entity_id, data.get("state")),
+            error="{} has no latitude/longitude attributes (state {!r}); a router- or "
+            "geofence-based tracker cannot drive a hand".format(entity_id, data.get("state")),
         )
 
     timestamp = now
@@ -151,9 +151,7 @@ class HassSource:
             log.info("hass source disabled")
             return
         if not self.token():
-            self.last_error = "%s is not set in the environment" % (
-                self.config.sources.hass.token_env
-            )
+            self.last_error = f"{self.config.sources.hass.token_env} is not set in the environment"
             log.warning("hass source enabled but %s", self.last_error)
             return
         self._task = asyncio.create_task(self._loop(), name="hass-poll")
@@ -162,10 +160,8 @@ class HassSource:
         """Cancel the polling task."""
         if self._task is not None:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError, Exception):
                 await self._task
-            except (asyncio.CancelledError, Exception):
-                pass
             self._task = None
 
     async def _loop(self) -> None:
@@ -193,7 +189,7 @@ class HassSource:
         token = self.token()
         if not token:
             return 0
-        headers = {"Authorization": "Bearer %s" % token, "Content-Type": "application/json"}
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
         accepted = 0
         factory = self.client_factory
         client = (
@@ -204,18 +200,18 @@ class HassSource:
         async with client:
             for entity in self.entities:
                 self.polls += 1
-                url = "%s/api/states/%s" % (settings.url.rstrip("/"), entity)
+                url = "{}/api/states/{}".format(settings.url.rstrip("/"), entity)
                 try:
                     response = await client.get(url, headers=headers)
                 except Exception as exc:
                     self.errors += 1
-                    self.last_error = "%s: %s" % (entity, exc)
+                    self.last_error = f"{entity}: {exc}"
                     self._reject(entity, str(exc))
                     continue
                 if response.status_code != 200:
                     self.errors += 1
-                    message = "HTTP %d" % response.status_code
-                    self.last_error = "%s: %s" % (entity, message)
+                    message = f"HTTP {response.status_code}"
+                    self.last_error = f"{entity}: {message}"
                     self._reject(entity, message)
                     continue
                 result = parse_hass_state(response.json(), self.config, entity)

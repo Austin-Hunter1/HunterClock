@@ -41,7 +41,7 @@ def decode_json(payload: bytes | str) -> tuple[Any, str | None]:
     try:
         return json.loads(text), None
     except ValueError as exc:
-        return None, "payload is not JSON (%s)" % exc
+        return None, f"payload is not JSON ({exc})"
 
 
 def number(value: Any) -> float | None:

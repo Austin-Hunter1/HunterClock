@@ -144,11 +144,12 @@ class Motion(Strict):
     @model_validator(mode="after")
     def _within_limits(self) -> Motion:
         if self.max_speed > self.speed_limit:
-            raise ValueError("max_speed %.1f exceeds speed_limit %.1f" % (
-                self.max_speed, self.speed_limit))
+            raise ValueError(
+                f"max_speed {self.max_speed:.1f} exceeds "
+                f"speed_limit {self.speed_limit:.1f}"
+            )
         if self.accel > self.accel_limit:
-            raise ValueError("accel %.1f exceeds accel_limit %.1f" % (
-                self.accel, self.accel_limit))
+            raise ValueError(f"accel {self.accel:.1f} exceeds accel_limit {self.accel_limit:.1f}")
         if self.assist_speed > self.speed_limit:
             raise ValueError("assist_speed exceeds speed_limit")
         return self
@@ -227,7 +228,7 @@ class Sources(Strict):
         known = {"manual", "owntracks", "generic_mqtt", "hass"}
         unknown = set(value) - known
         if unknown:
-            raise ValueError("unknown source(s) in priority: %s" % ", ".join(sorted(unknown)))
+            raise ValueError("unknown source(s) in priority: {}".format(", ".join(sorted(unknown))))
         if len(set(value)) != len(value):
             raise ValueError("priority has duplicates")
         return value
@@ -317,11 +318,11 @@ class ClockConfig(Strict):
         if not value:
             raise ValueError("at least one person is required")
         if len(value) > 6:
-            raise ValueError("the clock has six hands; got %d people" % len(value))
+            raise ValueError(f"the clock has six hands; got {len(value)} people")
         levels = [person.level for person in value]
         if len(set(levels)) != len(levels):
             duplicates = sorted({lv for lv in levels if levels.count(lv) > 1})
-            raise ValueError("two people share hub level(s) %s" % duplicates)
+            raise ValueError(f"two people share hub level(s) {duplicates}")
         slugs = [person.slug for person in value]
         if len(set(slugs)) != len(slugs):
             raise ValueError("two people have the same name")
@@ -335,7 +336,7 @@ class ClockConfig(Strict):
         for person in self.people:
             if person.slug == wanted or person.name.lower() == wanted:
                 return person
-        raise KeyError("no person named %r" % name)
+        raise KeyError(f"no person named {name!r}")
 
     def person_for_channel(self, channel: int) -> Person | None:
         """The person driven by a Pico channel, or ``None`` if unassigned."""
@@ -450,7 +451,7 @@ def format_validation_error(exc: Exception) -> str:
     lines = []
     for error in errors():
         where = ".".join(str(part) for part in error.get("loc", ())) or "(root)"
-        lines.append("%s: %s" % (where, error.get("msg", "invalid")))
+        lines.append("{}: {}".format(where, error.get("msg", "invalid")))
     return "\n".join(lines) or str(exc)
 
 
@@ -459,10 +460,12 @@ def load_yaml(text: str) -> Any:
     try:
         return yaml.safe_load(text)
     except yaml.YAMLError as exc:
-        raise ConfigError("YAML syntax error: %s" % exc) from exc
+        raise ConfigError(f"YAML syntax error: {exc}") from exc
 
 
-def load_config(path: Path | str | None = None, *, fall_back_to_example: bool = True) -> ClockConfig:
+def load_config(
+    path: Path | str | None = None, *, fall_back_to_example: bool = True
+) -> ClockConfig:
     """Load and validate the configuration.
 
     Args:
@@ -481,13 +484,13 @@ def load_config(path: Path | str | None = None, *, fall_back_to_example: bool = 
             target = example_config_path()
         else:
             raise ConfigError(
-                "no configuration at %s (copy config/clock.example.yaml to "
-                "config/clock.yaml)" % target
+                f"no configuration at {target} (copy config/clock.example.yaml to "
+                "config/clock.yaml)"
             )
     try:
         text = target.read_text(encoding="utf-8")
     except OSError as exc:
-        raise ConfigError("cannot read %s: %s" % (target, exc)) from exc
+        raise ConfigError(f"cannot read {target}: {exc}") from exc
     config = parse_config(load_yaml(text))
     return config
 

@@ -81,16 +81,15 @@ def accept_fix(
         return Decision(False, REASON_BAD_COORDS, "lat/lon is not a finite number")
     if not -90.0 <= fix.lat <= 90.0 or not -180.0 <= fix.lon <= 180.0:
         return Decision(
-            False, REASON_BAD_COORDS, "lat/lon out of range: %.4f, %.4f" % (fix.lat, fix.lon)
+            False, REASON_BAD_COORDS, f"lat/lon out of range: {fix.lat:.4f}, {fix.lon:.4f}"
         )
 
-    if fix.accuracy_m is not None and _finite(fix.accuracy_m):
-        if fix.accuracy_m > filtering.max_accuracy_m:
-            return Decision(
-                False,
-                REASON_ACCURACY,
-                "accuracy %.0f m is worse than the %.0f m limit"
-                % (fix.accuracy_m, filtering.max_accuracy_m),
+    if _finite(fix.accuracy_m) and fix.accuracy_m > filtering.max_accuracy_m:
+        return Decision(
+            False,
+            REASON_ACCURACY,
+            f"accuracy {fix.accuracy_m:.0f} m is worse than "
+            f"the {filtering.max_accuracy_m:.0f} m limit",
             )
 
     age = now - fix.ts
@@ -98,7 +97,7 @@ def accept_fix(
         return Decision(
             False,
             REASON_TOO_OLD,
-            "fix is %.1f h old, limit is %.1f h" % (age / 3600.0, filtering.max_age_s / 3600.0),
+            f"fix is {age / 3600.0:.1f} h old, limit is {filtering.max_age_s / 3600.0:.1f} h",
         )
 
     if last is not None:
@@ -161,7 +160,7 @@ def should_move(
         return Decision(
             False,
             REASON_DEADBAND,
-            "%.2f deg is inside the %.2f deg deadband" % (change, filtering.deadband_deg),
+            f"{change:.2f} deg is inside the {filtering.deadband_deg:.2f} deg deadband",
         )
     if last_move_at is not None:
         since = now - last_move_at
@@ -169,10 +168,10 @@ def should_move(
             return Decision(
                 False,
                 REASON_TOO_SOON,
-                "only %.1f s since the last move, minimum is %.1f s"
-                % (since, filtering.min_move_interval_s),
+                f"only {since:.1f} s since the last move, minimum is "
+                f"{filtering.min_move_interval_s:.1f} s",
             )
-    return Decision(True, REASON_OK, "%.2f deg change" % change)
+    return Decision(True, REASON_OK, f"{change:.2f} deg change")
 
 
 def _finite(value: float | None) -> bool:

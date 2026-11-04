@@ -71,7 +71,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--log-level", default="INFO", help="DEBUG, INFO, WARNING or ERROR")
     parser.add_argument("--no-web", action="store_true", help="run the engine without the UI")
-    parser.add_argument("--version", action="version", version="clockd %s" % __version__)
+    parser.add_argument("--version", action="version", version=f"clockd {__version__}")
     return parser
 
 
@@ -186,7 +186,7 @@ async def run(args: argparse.Namespace) -> int:
     try:
         config = load_config(args.config)
     except ConfigError as exc:
-        print("Configuration error:\n%s" % exc, file=sys.stderr)
+        print(f"Configuration error:\n{exc}", file=sys.stderr)
         return 2
 
     if args.serial_port:
@@ -222,7 +222,7 @@ async def run(args: argparse.Namespace) -> int:
                 repo_root=root,
             )
         except AuthError as exc:
-            print("Refusing to start:\n%s" % exc, file=sys.stderr)
+            print(f"Refusing to start:\n{exc}", file=sys.stderr)
             return 2
         server = uvicorn.Server(
             uvicorn.Config(
@@ -241,15 +241,18 @@ async def run(args: argparse.Namespace) -> int:
         await _seed_simulation(engine)
 
     banner = [
-        "clockd %s starting" % __version__,
+        f"clockd {__version__} starting",
         "  mode     : %s" % ("SIMULATION (no hardware)" if args.sim else "live hardware"),
-        "  config   : %s people, home %s" % (len(config.people), config.home.name),
+        f"  config   : {len(config.people)} people, home {config.home.name}",
         "  pico     : %s" % ("in-process simulator" if args.sim else config.serial.port),
-        "  mqtt     : %s" % ("in-memory" if isinstance(bus, MemoryBus) else
-                             "%s:%d" % (config.mqtt.host, config.mqtt.port)),
+        "  mqtt     : {}".format(
+            "in-memory"
+            if isinstance(bus, MemoryBus)
+            else f"{config.mqtt.host}:{config.mqtt.port}"
+        ),
     ]
     if not args.no_web:
-        banner.append("  web UI   : http://%s:%d" % (config.web.host, config.web.port))
+        banner.append(f"  web UI   : http://{config.web.host}:{config.web.port}")
     print("\n".join(banner), flush=True)
 
     stop = asyncio.Event()
@@ -319,7 +322,7 @@ async def _seed_simulation(engine: Engine) -> None:
                 "ts": time.time(),
             }
         )
-        topic = "%s/%s" % (
+        topic = "{}/{}".format(
             engine.config.sources.generic_mqtt.topic_prefix.strip("/"),
             person.slug,
         )

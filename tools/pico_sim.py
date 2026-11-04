@@ -28,8 +28,8 @@ import json
 import random
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PICO_DIR = REPO_ROOT / "firmware" / "pico"

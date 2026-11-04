@@ -183,7 +183,7 @@ def create_app(
     def page(request: Request, name: str, template: str, **context: Any) -> Response:
         """Render a page, redirecting to the login form when signed out."""
         if not logged_in(request):
-            return RedirectResponse("/login?next=%s" % request.url.path, status_code=303)
+            return RedirectResponse(f"/login?next={request.url.path}", status_code=303)
         return templates.TemplateResponse(
             request,
             template,
@@ -314,7 +314,7 @@ def create_app(
     def hardware_error(exc: Exception) -> JSONResponse:
         """Turn a link failure into a 503 the UI can show plainly."""
         message = str(exc)
-        engine.events.error("action failed: %s" % message)
+        engine.events.error(f"action failed: {message}")
         return JSONResponse({"ok": False, "error": message}, status_code=503)
 
     @app.post("/api/jog", dependencies=[Depends(require_session)])
@@ -323,7 +323,7 @@ def create_app(
         try:
             await engine.jog(body.person, body.degrees)
         except KeyError:
-            raise HTTPException(404, "no such person")
+            raise HTTPException(404, "no such person") from None
         except (LinkError, CommandFailed) as exc:
             return hardware_error(exc)
         return JSONResponse({"ok": True})
@@ -334,7 +334,7 @@ def create_app(
         try:
             await engine.move_to_angle(body.person, body.angle_deg)
         except KeyError:
-            raise HTTPException(404, "no such person")
+            raise HTTPException(404, "no such person") from None
         except (LinkError, CommandFailed) as exc:
             return hardware_error(exc)
         return JSONResponse({"ok": True})
@@ -345,7 +345,7 @@ def create_app(
         try:
             await engine.set_zero(body.person)
         except KeyError:
-            raise HTTPException(404, "no such person")
+            raise HTTPException(404, "no such person") from None
         except (LinkError, CommandFailed) as exc:
             return hardware_error(exc)
         return JSONResponse({"ok": True})
@@ -356,7 +356,7 @@ def create_app(
         try:
             await engine.set_verified(body.person, body.verified)
         except KeyError:
-            raise HTTPException(404, "no such person")
+            raise HTTPException(404, "no such person") from None
         return JSONResponse({"ok": True})
 
     @app.post("/api/enable", dependencies=[Depends(require_session)])
@@ -410,7 +410,7 @@ def create_app(
         try:
             engine.person(body.person)
         except KeyError:
-            raise HTTPException(404, "no such person")
+            raise HTTPException(404, "no such person") from None
         # A sweep takes tens of seconds; run it in the background so the button
         # returns at once and the dashboard shows the hand moving.
         asyncio.create_task(_guarded(engine.test_sweep(body.person), engine))
@@ -444,7 +444,7 @@ def create_app(
                 note=body.note,
             )
         except KeyError:
-            raise HTTPException(404, "no such person")
+            raise HTTPException(404, "no such person") from None
         except (LinkError, CommandFailed) as exc:
             return hardware_error(exc)
         return JSONResponse({"ok": True, "override": override.to_dict()})
@@ -455,7 +455,7 @@ def create_app(
         try:
             await engine.clear_override(body.person)
         except KeyError:
-            raise HTTPException(404, "no such person")
+            raise HTTPException(404, "no such person") from None
         except (LinkError, CommandFailed) as exc:
             return hardware_error(exc)
         return JSONResponse({"ok": True})
@@ -466,7 +466,7 @@ def create_app(
         try:
             enabled = engine.set_source_enabled(body.name, body.enabled)
         except KeyError:
-            raise HTTPException(404, "no such source")
+            raise HTTPException(404, "no such source") from None
         return JSONResponse({"ok": True, "enabled": enabled})
 
     @app.post("/api/scenario", dependencies=[Depends(require_session)])
@@ -475,7 +475,7 @@ def create_app(
         from ..scenarios import SCENARIOS, run_scenario
 
         if body.name not in SCENARIOS:
-            raise HTTPException(404, "no scenario named %r" % body.name)
+            raise HTTPException(404, f"no scenario named {body.name!r}")
         task = app.state.scenario_task
         if task is not None and not task.done():
             task.cancel()
@@ -544,7 +544,7 @@ def create_app(
         else:
             example = config_module.example_config_path()
             text = example.read_text(encoding="utf-8") if example.is_file() else dump_config(config)
-            source = "%s (example; %s does not exist yet)" % (example, path)
+            source = f"{example} (example; {path} does not exist yet)"
         return JSONResponse({"text": text, "path": str(path), "source": source})
 
     @app.post("/api/config/validate", dependencies=[Depends(require_session)])
@@ -579,12 +579,11 @@ def create_app(
         path.parent.mkdir(parents=True, exist_ok=True)
         backup = None
         if path.is_file():
-            backup = path.with_name("%s.%s.bak" % (path.name, time.strftime("%Y%m%d-%H%M%S")))
+            backup = path.with_name("{}.{}.bak".format(path.name, time.strftime("%Y%m%d-%H%M%S")))
             shutil.copy2(path, backup)
         path.write_text(body.text, encoding="utf-8")
         engine.events.action(
-            "configuration saved to %s%s"
-            % (path, " (backup %s)" % backup.name if backup else "")
+            "configuration saved to {}{}".format(path, f" (backup {backup.name})" if backup else "")
         )
         return JSONResponse(
             {
@@ -631,7 +630,7 @@ def create_app(
             buffer.read(),
             media_type="application/zip",
             headers={
-                "Content-Disposition": 'attachment; filename="weasley-clock-%s.zip"' % stamp
+                "Content-Disposition": f'attachment; filename="weasley-clock-{stamp}.zip"'
             },
         )
 
@@ -664,13 +663,13 @@ def create_app(
         root = Path(app.state.repo_root)
         before = _git(root, "rev-parse", "HEAD")
         if before is None:
-            raise HTTPException(400, "%s is not a git checkout" % root)
+            raise HTTPException(400, f"{root} is not a git checkout")
         (root / "var").mkdir(exist_ok=True)
         (root / "var" / "rollback-commit").write_text(before.strip(), encoding="utf-8")
         result = _run(["git", "pull", "--ff-only"], cwd=root)
         after = _git(root, "rev-parse", "HEAD")
         engine.events.action(
-            "update from GitHub: %s -> %s" % ((before or "?")[:8], (after or "?")[:8]),
+            "update from GitHub: {} -> {}".format((before or "?")[:8], (after or "?")[:8]),
             ok=result["ok"],
         )
         return JSONResponse(
@@ -692,7 +691,7 @@ def create_app(
             raise HTTPException(400, "no recorded commit to roll back to")
         commit = marker.read_text(encoding="utf-8").strip()
         result = _run(["git", "checkout", "--detach", commit], cwd=root)
-        engine.events.action("rolled back to %s" % commit[:8], ok=result["ok"])
+        engine.events.action(f"rolled back to {commit[:8]}", ok=result["ok"])
         return JSONResponse(
             {"ok": result["ok"], "commit": commit, "output": result["output"],
              "restart_required": result["ok"]}
@@ -714,7 +713,7 @@ def create_app(
         root = Path(app.state.repo_root)
         files = ["motion.py", "protocol.py", "core.py", "main.py"]
         port = config.serial.port
-        engine.events.action("firmware upload started (%s)" % ", ".join(files))
+        engine.events.action("firmware upload started ({})".format(", ".join(files)))
         await engine.link.close()
         outputs = []
         ok = True
@@ -722,11 +721,11 @@ def create_app(
             for name in files:
                 source = root / "firmware" / "pico" / name
                 if not source.is_file():
-                    outputs.append("missing %s" % source)
+                    outputs.append(f"missing {source}")
                     ok = False
                     break
                 result = _run(
-                    ["mpremote", "connect", port, "fs", "cp", str(source), ":%s" % name],
+                    ["mpremote", "connect", port, "fs", "cp", str(source), f":{name}"],
                     cwd=root,
                     timeout=60,
                 )
@@ -751,7 +750,7 @@ async def _guarded(coro, engine: Engine) -> None:
     except asyncio.CancelledError:
         raise
     except Exception as exc:
-        engine.events.error("background task failed: %s" % exc)
+        engine.events.error(f"background task failed: {exc}")
         log.exception("background task failed")
 
 
@@ -770,7 +769,7 @@ def _run(command: list[str], cwd: Path | None = None, timeout: float = 120.0) ->
             check=False,
         )
     except (OSError, subprocess.SubprocessError) as exc:
-        return {"ok": False, "output": "%s: %s" % (" ".join(command), exc)}
+        return {"ok": False, "output": "{}: {}".format(" ".join(command), exc)}
     output = (completed.stdout or "") + (completed.stderr or "")
     return {"ok": completed.returncode == 0, "output": output.strip(), "code": completed.returncode}
 
@@ -899,7 +898,7 @@ def _sanitised_config_text(path: Path | str) -> str:
     try:
         text = source.read_text(encoding="utf-8")
     except OSError as exc:
-        return "# could not read %s: %s\n" % (source, exc)
+        return f"# could not read {source}: {exc}\n"
 
     secret_words = ("password", "secret", "token", "key", "psk", "passphrase")
     out = []
@@ -913,7 +912,8 @@ def _sanitised_config_text(path: Path | str) -> str:
         # Keep "*_env" keys: they name an environment variable, not a secret.
         if any(word in key for word in secret_words) and not key.endswith("_env") and value:
             indent = line[: len(line) - len(line.lstrip())]
-            out.append("%s%s: \"<removed for sharing>\"" % (indent, line.split(":", 1)[0].strip()))
+            key_text = line.split(":", 1)[0].strip()
+            out.append(f'{indent}{key_text}: "<removed for sharing>"')
         else:
             out.append(line)
     return "\n".join(out) + "\n"
@@ -933,7 +933,7 @@ def _environment_names() -> str:
     )
     lines = ["Environment variables (names and whether they are set; never values)", ""]
     for name in interesting:
-        lines.append("%-20s %s" % (name, "set" if os.environ.get(name) else "not set"))
+        lines.append(f"{name:<20} " + ("set" if os.environ.get(name) else "not set"))
     return "\n".join(lines) + "\n"
 
 
@@ -941,8 +941,8 @@ def _config_summary(config: ClockConfig) -> dict[str, Any]:
     """A short description of a proposed configuration, for the diff view."""
     return {
         "site": config.site,
-        "home": "%s (%.4f, %.4f)" % (config.home.name, config.home.lat, config.home.lon),
-        "people": ["%s (level %d)" % (p.name, p.level) for p in config.people],
+        "home": f"{config.home.name} ({config.home.lat:.4f}, {config.home.lon:.4f})",
+        "people": [f"{p.name} (level {p.level})" for p in config.people],
         "max_speed": config.motion.max_speed,
         "sources": [
             name

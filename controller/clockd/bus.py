@@ -77,7 +77,7 @@ class Message:
             return None
 
     def __repr__(self) -> str:
-        return "Message(%r, %r, retain=%r)" % (self.topic, self.text()[:60], self.retain)
+        return f"Message({self.topic!r}, {self.text()[:60]!r}, retain={self.retain!r})"
 
 
 class Bus:
@@ -317,7 +317,7 @@ class MqttBus(Bus):
     def _on_connect(self, _client, _userdata, _flags, reason_code, *_args) -> None:
         code = getattr(reason_code, "value", reason_code)
         if code not in (0, None):
-            self.last_error = "connect refused: %s" % reason_code
+            self.last_error = f"connect refused: {reason_code}"
             log.warning("MQTT connect refused: %s", reason_code)
             return
         self.connected = True
@@ -351,7 +351,7 @@ class MqttBus(Bus):
         return {
             "kind": "mqtt",
             "connected": self.connected,
-            "host": "%s:%d" % (self.host, self.port),
+            "host": f"{self.host}:{self.port}",
             "published": self.publish_count,
             "subscriptions": [f for f, _ in self.subscriptions],
             "connects": self.connect_count,

@@ -19,7 +19,13 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-from ..auth import hash_password, make_session_token, read_session_token, secret_key, verify_password
+from ..auth import (
+    hash_password,
+    make_session_token,
+    read_session_token,
+    secret_key,
+    verify_password,
+)
 
 #: Name of the session cookie.
 COOKIE_NAME = "clockd_session"

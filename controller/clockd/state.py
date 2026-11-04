@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 #: Source names, in the order of the spec.  ``startup`` is the config fallback
@@ -66,7 +66,7 @@ def iso(timestamp: float | None) -> str | None:
     """Format a unix timestamp as a UTC ISO-8601 string, or ``None``."""
     if timestamp is None:
         return None
-    return datetime.fromtimestamp(timestamp, timezone.utc).isoformat(timespec="seconds")
+    return datetime.fromtimestamp(timestamp, UTC).isoformat(timespec="seconds")
 
 
 @dataclass
@@ -245,8 +245,8 @@ class PersonState:
             return "HOME"
         distance = self.distance_km or 0.0
         if distance < 10:
-            return "%.1f km away" % distance
-        return "%d km away" % round(distance)
+            return f"{distance:.1f} km away"
+        return f"{round(distance)} km away"
 
     def seconds_since_seen(self, now: float | None = None) -> float | None:
         """Age of the last fix in seconds, or ``None`` if never seen."""

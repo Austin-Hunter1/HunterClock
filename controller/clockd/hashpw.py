@@ -37,7 +37,7 @@ def main(argv: list[str] | None = None) -> int:
     print()
     print("Paste this into config/clock.yaml under web.password_hash:")
     print()
-    print("  password_hash: \"%s\"" % hash_password(password))
+    print(f"  password_hash: \"{hash_password(password)}\"")
     print()
     return 0
 

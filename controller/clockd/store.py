@@ -16,6 +16,7 @@ brownout mid-write leaves the previous good file rather than half of a new one.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import tempfile
@@ -59,14 +60,11 @@ class Store:
         try:
             raw = json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
-            self.load_error = "%s is unreadable (%s); starting with empty state" % (
-                self.path,
-                exc,
-            )
+            self.load_error = f"{self.path} is unreadable ({exc}); starting with empty state"
             self._quarantine()
             return
         if not isinstance(raw, dict) or not isinstance(raw.get("people"), dict):
-            self.load_error = "%s does not hold clock state; starting empty" % self.path
+            self.load_error = f"{self.path} does not hold clock state; starting empty"
             self._quarantine()
             return
         self.data = {
@@ -76,17 +74,15 @@ class Store:
         }
 
     def _quarantine(self) -> None:
-        try:
+        with contextlib.suppress(OSError):
             self.path.rename(self.path.with_suffix(self.path.suffix + ".corrupt"))
-        except OSError:
-            pass
 
     def save(self) -> None:
         """Write the state atomically."""
         self.data["saved_at"] = time.time()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         payload = json.dumps(self.data, indent=2, sort_keys=True)
-        handle = tempfile.NamedTemporaryFile(
+        handle = tempfile.NamedTemporaryFile(  # noqa: SIM115 - closed by the `with` below
             "w",
             encoding="utf-8",
             dir=str(self.path.parent),
@@ -102,10 +98,8 @@ class Store:
             # os.replace is atomic on both POSIX and Windows.
             os.replace(handle.name, self.path)
         except OSError:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(handle.name)
-            except OSError:
-                pass
             raise
         self.saves += 1
 

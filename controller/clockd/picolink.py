@@ -57,7 +57,7 @@ class CommandFailed(LinkError):
     """
 
     def __init__(self, code: str, message: str, reply: dict | None = None):
-        super().__init__("%s: %s" % (code, message))
+        super().__init__(f"{code}: {message}")
         self.code = code
         self.reply = reply or {}
 
@@ -361,7 +361,7 @@ class PicoLink:
                 data = await asyncio.wait_for(
                     transport.read(), max(0.01, deadline - time.monotonic())
                 )
-            except (asyncio.TimeoutError, Exception):
+            except (TimeoutError, Exception):
                 return
             if not data:
                 continue
@@ -381,7 +381,7 @@ class PicoLink:
             await transport.close()
         for future in list(self._pending.values()):
             if not future.done():
-                future.set_exception(LinkError("link dropped: %s" % reason))
+                future.set_exception(LinkError(f"link dropped: {reason}"))
         self._pending.clear()
         if was_connected:
             await self._notify_connection(False)
@@ -563,11 +563,11 @@ class PicoLink:
                     await self.transport.write(protocol.encode(message))
                 self.commands_sent += 1
                 reply = await asyncio.wait_for(future, timeout)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self._pending.pop(seq, None)
                 self.timeouts += 1
                 last_error = LinkError(
-                    "no reply to %s (seq %d) in %.1f s" % (cmd, seq, timeout)
+                    f"no reply to {cmd} (seq {seq}) in {timeout:.1f} s"
                 )
                 log.warning("%s; attempt %d of %d", last_error, attempt + 1, attempts)
                 continue
@@ -577,7 +577,7 @@ class PicoLink:
                 continue
             except Exception as exc:
                 self._pending.pop(seq, None)
-                raise LinkError("writing to the Pico failed: %s" % exc) from exc
+                raise LinkError(f"writing to the Pico failed: {exc}") from exc
 
             if not reply.get("ok", False):
                 raise CommandFailed(
@@ -585,7 +585,7 @@ class PicoLink:
                 )
             return reply
 
-        raise last_error or LinkError("command %s failed" % cmd)
+        raise last_error or LinkError(f"command {cmd} failed")
 
     # -- convenience wrappers --------------------------------------------
 

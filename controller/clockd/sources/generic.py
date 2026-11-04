@@ -54,13 +54,13 @@ def parse_generic(
     try:
         person = config.person(slug)
     except KeyError:
-        return ParseResult(error="no person named %r (topic %s)" % (slug, topic))
+        return ParseResult(error=f"no person named {slug!r} (topic {topic})")
 
     data, error = decode_json(payload)
     if error is not None:
-        return ParseResult(person=person, error="%s on %s" % (error, topic))
+        return ParseResult(person=person, error=f"{error} on {topic}")
     if not isinstance(data, dict):
-        return ParseResult(person=person, error="payload on %s is not a JSON object" % topic)
+        return ParseResult(person=person, error=f"payload on {topic} is not a JSON object")
 
     timestamp = number(data.get("ts")) or number(data.get("tst"))
     accuracy = number(data.get("acc"))
@@ -77,7 +77,7 @@ def parse_generic(
     if lat is None or lon is None:
         if distance is None:
             return ParseResult(
-                person=person, error="payload on %s has neither lat/lon nor distance_km" % topic
+                person=person, error=f"payload on {topic} has neither lat/lon nor distance_km"
             )
         # A distance-only report: keep home's coordinates so the fix is still a
         # well-formed position, and carry the distance explicitly.
@@ -138,7 +138,7 @@ class GenericMqttSource:
     @property
     def topic_filter(self) -> str:
         """The MQTT filter this source subscribes to."""
-        return "%s/+" % self.config.sources.generic_mqtt.topic_prefix.strip("/")
+        return "{}/+".format(self.config.sources.generic_mqtt.topic_prefix.strip("/"))
 
     async def start(self, bus: Bus) -> None:
         """Subscribe, unless disabled."""
