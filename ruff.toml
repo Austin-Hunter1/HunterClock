@@ -1,0 +1,35 @@
+# One lint configuration for the whole repo, so `make lint` means the same
+# thing everywhere and does not depend on which directory you run it from.
+
+line-length = 100
+target-version = "py311"
+extend-exclude = ["firmware/esp32", "cad_out", "docs"]
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = [
+    "B008",    # FastAPI's Depends() in a default is the documented pattern.
+    "SIM108",  # A ternary is not always clearer than an if.
+]
+
+[lint.per-file-ignores]
+# The firmware runs under MicroPython on an RP2040 with 264 KB of RAM, which
+# changes what "better" means:
+#   UP      percent formatting is the MicroPython idiom and the smallest code;
+#           several of the suggested modernisations do not exist on the port.
+#   B904    exception chaining costs memory and MicroPython's traceback does
+#           not show the cause, so `raise ... from` buys nothing there.
+#   SIM105  contextlib is not built in; importing it to replace try/except/pass
+#           would cost flash for nothing.
+#   SIM110  `any(generator)` allocates; an explicit loop in the step path does
+#           not, and that path runs thousands of times a second.
+#   I001    import order in main.py is deliberate: the pure modules load before
+#           anything touches `machine`.
+"firmware/pico/*.py" = ["UP", "B904", "SIM105", "SIM110", "I001"]
+"tools/pico_sim.py" = ["UP031"]
+# The CAD scripts predate this work and are not part of the tracking system.
+"build_cad.py" = ["ALL"]
+"render_cad.py" = ["ALL"]
+"visualize_hardware_plan.py" = ["ALL"]
+"visualize_two_screen_layout.py" = ["ALL"]
+"docs/*.py" = ["ALL"]

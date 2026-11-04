@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block page_title %}Control &middot; {{ title }}{% endblock %}
+{% block content %}
+<h1>Control</h1>
+<p class="lede">Direct control of each hand. Everything here is logged with a timestamp.
+Jogging works on an unverified hand &mdash; that is how a hand gets verified &mdash; but the
+engine will not drive an unverified hand from location data until someone confirms it.</p>
+
+<button class="danger stop-all" id="stop-all" type="button">STOP ALL</button>
+
+<div class="card" style="margin-top:14px">
+  <h2>All hands</h2>
+  <div class="row">
+    <button id="enable-on" type="button">Enable drivers</button>
+    <button id="enable-off" type="button">Release drivers</button>
+    <button id="all-twelve" type="button">Move all to 12</button>
+    <button id="resume-live" type="button">All to live positions</button>
+    <button id="estop" class="danger" type="button">E-stop</button>
+  </div>
+  <p class="small muted" style="margin:10px 0 0">
+    Releasing the drivers removes the holding torque: the hands can then be turned by hand,
+    which is what the zeroing wizard needs, but they can also be knocked out of position.
+    E-stop halts instantly and marks every hand unverified, because stopping at speed can slip the rotor.
+  </p>
+
+  <hr>
+  <h3>Speed and acceleration</h3>
+  <div class="row">
+    <div class="field">
+      <label for="speed">Max speed <span id="speed-value" class="mono"></span></label>
+      <input id="speed" type="range" min="20" step="10">
+    </div>
+    <div class="field">
+      <label for="accel">Acceleration <span id="accel-value" class="mono"></span></label>
+      <input id="accel" type="range" min="50" step="50">
+    </div>
+    <button id="apply-params" type="button">Apply</button>
+  </div>
+  <p class="small muted" style="margin:8px 0 0" id="speed-note"></p>
+</div>
+
+<div id="hands" style="margin-top:14px"></div>
+{% endblock %}
+
+{% block script %}
+<script>
+const ui = window.clockui;
+let built = false;
+let limits = null;
+
+function handPanel(person) {
+  const panel = document.createElement("div");
+  panel.className = "hand-panel";
+  panel.id = "panel-" + person.slug;
+
+  const head = document.createElement("div");
+  head.className = "hand-head";
+  const sw = document.createElement("span");
+  sw.className = "sw";
+  sw.style.background = person.color;
+  const name = document.createElement("span");
+  name.className = "hand-name";
+  name.textContent = person.name;
+  const meta = document.createElement("span");
+  meta.className = "hand-meta";
+  meta.textContent = `level ${person.level} · channel ${person.channel}`;
+  const readout = document.createElement("span");
+  readout.className = "hand-readout";
+  readout.id = "readout-" + person.slug;
+  head.append(sw, name, meta, readout);
+
+  const jogRow = document.createElement("div");
+  jogRow.className = "row tight";
+  const jogLabel = document.createElement("span");
+  jogLabel.className = "hand-meta";
+  jogLabel.textContent = "Jog";
+  jogRow.appendChild(jogLabel);
+  for (const degrees of [-90, -10, -1, 1, 10, 90]) {
+    const button = document.createElement("button");
+    button.className = "small";
+    button.textContent = (degrees > 0 ? "+" : "") + degrees + "°";
+    button.onclick = () => ui.api("/api/jog", { person: person.slug, degrees });
+    jogRow.appendChild(button);
+  }
+  const custom = document.createElement("input");
+  custom.type = "number";
+  custom.step = "0.1";
+  custom.placeholder = "deg";
+  custom.style.maxWidth = "92px";
+  custom.id = "custom-" + person.slug;
+  const customGo = document.createElement("button");
+  customGo.className = "small";
+  customGo.textContent = "Jog";
+  customGo.onclick = () => {
+    const degrees = Number(custom.value);
+    if (!Number.isFinite(degrees) || degrees === 0) { ui.toast("Type a number of degrees.", true); return; }
+    ui.api("/api/jog", { person: person.slug, degrees });
+  };
+  jogRow.append(custom, customGo);
+
+  const moveRow = document.createElement("div");
+  moveRow.className = "row tight";
+  moveRow.style.marginTop = "8px";
+  const moveLabel = document.createElement("span");
+  moveLabel.className = "hand-meta";
+  moveLabel.textContent = "Move to";
+  const angle = document.createElement("input");
+  angle.type = "number";
+  angle.step = "0.1";
+  angle.placeholder = "angle";
+  angle.style.maxWidth = "100px";
+  const moveGo = document.createElement("button");
+  moveGo.className = "small";
+  moveGo.textContent = "Go";
+  moveGo.onclick = () => {
+    const value = Number(angle.value);
+    if (!Number.isFinite(value)) { ui.toast("Type an angle in degrees.", true); return; }
+    ui.api("/api/move", { person: person.slug, angle_deg: value });
+  };
+  const zero = document.createElement("button");
+  zero.className = "small primary";
+  zero.textContent = "Set zero here";
+  zero.onclick = () => ui.confirmAction(
+    `Declare ${person.name}'s hand to be at 12 o'clock right now? Only do this if it really is pointing straight up.`,
+    () => ui.api("/api/zero", { person: person.slug }).then(() => ui.toast(person.name + " zeroed and verified")));
+  const verify = document.createElement("button");
+  verify.className = "small";
+  verify.id = "verify-" + person.slug;
+  verify.onclick = () => {
+    const current = ui.latest.people.find((p) => p.slug === person.slug);
+    ui.api("/api/verify", { person: person.slug, verified: !current.verified });
+  };
+  const sweep = document.createElement("button");
+  sweep.className = "small";
+  sweep.textContent = "Test sweep";
+  sweep.onclick = () => ui.confirmAction(
+    `Run ${person.name}'s hand a full turn and back, slowly? It takes about half a minute.`,
+    () => ui.api("/api/sweep", { person: person.slug }).then(() => ui.toast("Sweep started")));
+  const stop = document.createElement("button");
+  stop.className = "small";
+  stop.textContent = "Stop";
+  stop.onclick = () => ui.api("/api/stop");
+  moveRow.append(moveLabel, angle, moveGo, zero, verify, sweep, stop);
+
+  panel.append(head, jogRow, moveRow);
+  return panel;
+}
+
+ui.onState((state) => {
+  const container = document.getElementById("hands");
+  if (!built) {
+    container.replaceChildren();
+    for (const person of state.people) container.appendChild(handPanel(person));
+    built = true;
+  }
+  for (const person of state.people) {
+    const panel = document.getElementById("panel-" + person.slug);
+    if (panel) panel.className = "hand-panel" + (person.verified ? "" : " unverified");
+    const readout = document.getElementById("readout-" + person.slug);
+    if (readout) {
+      readout.textContent =
+        `${ui.formatDeg(person.actual_deg)} now · ${ui.formatDeg(person.target_deg)} target · ` +
+        `${person.actual_steps ?? "—"} steps · ${person.verified ? "verified" : "UNVERIFIED"}` +
+        (person.moving ? " · moving" : "");
+    }
+    const verify = document.getElementById("verify-" + person.slug);
+    if (verify) verify.textContent = person.verified ? "Mark unverified" : "Mark verified";
+  }
+
+  if (!limits && state.motion) {
+    limits = state.motion;
+    const speed = document.getElementById("speed");
+    const accel = document.getElementById("accel");
+    speed.max = limits.speed_limit;
+    speed.value = limits.max_speed;
+    accel.max = limits.accel_limit;
+    accel.value = limits.accel;
+    const showSpeed = () => {
+      document.getElementById("speed-value").textContent =
+        `${speed.value} steps/s (${(speed.value / 3200 * 360).toFixed(0)}°/s)`;
+    };
+    const showAccel = () => {
+      document.getElementById("accel-value").textContent = `${accel.value} steps/s²`;
+    };
+    speed.oninput = showSpeed;
+    accel.oninput = showAccel;
+    showSpeed(); showAccel();
+    document.getElementById("speed-note").textContent =
+      `Ceilings from the config: ${limits.speed_limit} steps/s and ${limits.accel_limit} steps/s². ` +
+      `3200 microsteps is one full turn of a hand.`;
+  }
+});
+
+document.getElementById("stop-all").onclick = () => ui.api("/api/stop").then(() => ui.toast("Stopping all hands"));
+document.getElementById("estop").onclick = () => ui.confirmAction(
+  "E-stop halts every hand instantly and marks them all unverified, which means someone has to re-zero them at the clock. Continue?",
+  () => ui.api("/api/estop").then(() => ui.toast("E-stopped; every hand is now unverified", true)));
+document.getElementById("enable-on").onclick = () => ui.api("/api/enable", { on: true });
+document.getElementById("enable-off").onclick = () => ui.confirmAction(
+  "Releasing the drivers removes holding torque from all six hands. Continue?",
+  () => ui.api("/api/enable", { on: false }));
+document.getElementById("all-twelve").onclick = () => ui.confirmAction(
+  "Move all six hands to 12 o'clock?",
+  () => ui.api("/api/all-to-twelve").then((r) => ui.toast(`Moving ${r.moved} hands to 12`)));
+document.getElementById("resume-live").onclick = () => ui.confirmAction(
+  "Move all six hands to where the live locations say they should be?",
+  () => ui.api("/api/resume-live").then((r) => ui.toast(`Moving ${r.moved} hands`)));
+document.getElementById("apply-params").onclick = () => ui.api("/api/params", {
+  max_speed: Number(document.getElementById("speed").value),
+  accel: Number(document.getElementById("accel").value),
+}).then(() => ui.toast("Speed and acceleration applied"));
+</script>
+{% endblock %}

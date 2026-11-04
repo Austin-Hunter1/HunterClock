@@ -1,0 +1,1103 @@
+<title>Weasley Clock Dial</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Libre+Franklin:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+/* Layout: one dial card at the top, a control row per hand beneath it, stacking
+   to a single column on a phone. Palette and faces are the ones already used by
+   docs/hardware-plan.html and docs/circuit-diagram.html, so the dial preview
+   looks like the rest of the project's pages. */
+:root {
+  --ground: #F7F3EA;
+  --surface: #FFFFFF;
+  --sunken: #F0E9DA;
+  --ink: #2B2419;
+  --muted: #7D705D;
+  --line: #DED2BC;
+  --edge: #B9A98C;
+  --accent: #A8672B;
+  --accent-ink: #6F4419;
+  --brass: #C8A464;
+  --dial: #FBF7EE;
+  --warn: #B0562A;
+  --good: #3F7A3A;
+  --display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+  --body: 'Libre Franklin', system-ui, -apple-system, sans-serif;
+  --mono: 'IBM Plex Mono', 'SF Mono', Menlo, monospace;
+  --shadow: 0 1px 2px rgba(43, 36, 25, 0.06), 0 6px 20px -8px rgba(43, 36, 25, 0.14);
+  box-sizing: border-box;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #1A150F;
+    --surface: #231D15;
+    --sunken: #2C2418;
+    --ink: #EEE4D2;
+    --muted: #A5977E;
+    --line: #3C3222;
+    --edge: #6B5D45;
+    --accent: #E1974F;
+    --accent-ink: #F3C489;
+    --brass: #8A6E3C;
+    --dial: #2A2217;
+    --warn: #E28A54;
+    --good: #7FB36F;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 28px -10px rgba(0, 0, 0, 0.5);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #1A150F;
+  --surface: #231D15;
+  --sunken: #2C2418;
+  --ink: #EEE4D2;
+  --muted: #A5977E;
+  --line: #3C3222;
+  --edge: #6B5D45;
+  --accent: #E1974F;
+  --accent-ink: #F3C489;
+  --brass: #8A6E3C;
+  --dial: #2A2217;
+  --warn: #E28A54;
+  --good: #7FB36F;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 28px -10px rgba(0, 0, 0, 0.5);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-text-size-adjust: 100%;
+}
+
+.page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-block: 32px 72px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  margin: 0 0 8px;
+}
+h1 {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: clamp(27px, 5vw, 38px);
+  letter-spacing: -0.01em;
+  margin: 0;
+  text-wrap: balance;
+}
+.dek { color: var(--muted); max-width: 64ch; margin: 10px 0 0; }
+h2 {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 20px;
+  margin: 0 0 4px;
+  text-wrap: balance;
+}
+code, .mono { font-family: var(--mono); font-size: 0.88em; }
+a { color: var(--accent-ink); }
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+  margin-top: 28px;
+}
+@media (max-width: 860px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 18px;
+  min-width: 0;
+}
+.card.dial-card { padding: 14px 14px 18px; position: sticky; top: 16px; }
+@media (max-width: 860px) {
+  .card.dial-card { position: static; }
+}
+
+svg.dial { display: block; width: 100%; height: auto; }
+.dial text { font-family: var(--mono); fill: var(--ink); }
+
+.dial-caption {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin: 10px 0 0;
+  text-wrap: pretty;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 10px;
+  font-size: 12.5px;
+  font-family: var(--mono);
+  color: var(--muted);
+}
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw {
+  width: 11px; height: 11px; border-radius: 3px;
+  border: 1px solid var(--edge); flex: none;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+button {
+  font-family: var(--body);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--sunken);
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  padding: 7px 12px;
+  cursor: pointer;
+  min-height: 38px;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.hands { display: flex; flex-direction: column; gap: 10px; }
+
+.hand {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+}
+.hand-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.hand-name { font-family: var(--display); font-weight: 600; font-size: 17px; }
+.hand-level {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.hand-readout {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-ink);
+  white-space: nowrap;
+}
+.hand-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: end;
+}
+@media (max-width: 520px) {
+  .hand-controls { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .hand-controls .field-place { grid-column: 1 / -1; }
+}
+.field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+label {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+select, input[type="number"], textarea {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--ground);
+  border: 1px solid var(--edge);
+  border-radius: 7px;
+  padding: 7px 8px;
+  min-width: 0;
+  width: 100%;
+  min-height: 38px;
+}
+textarea { min-height: 88px; resize: vertical; line-height: 1.45; }
+input[type="range"] { width: 100%; accent-color: var(--accent); min-height: 32px; }
+
+.slider-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+.slider-value {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.badge {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 2px 8px;
+  border: 1px solid var(--edge);
+  color: var(--muted);
+}
+.badge.fake { color: var(--warn); border-color: var(--warn); }
+
+.table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-top: 14px;
+  background: var(--surface);
+}
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 560px; }
+th, td {
+  text-align: right;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+th:first-child, td:first-child { text-align: left; }
+thead th {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 500;
+}
+tbody tr:last-child td { border-bottom: none; }
+
+.note {
+  background: var(--sunken);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-top: 18px;
+  font-size: 14px;
+  color: var(--ink);
+}
+.note p { margin: 0 0 8px; }
+.note p:last-child { margin: 0; }
+.formula {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 9px 11px;
+  margin: 8px 0;
+  overflow-x: auto;
+  white-space: pre;
+}
+footer {
+  margin-top: 40px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+</style>
+
+<div class="page">
+  <p class="eyebrow">Weasley Clock &middot; dial preview</p>
+  <h1>Where everyone is, and where the hands point</h1>
+  <p class="dek">
+    The same log-distance mapping the clock runs on: distance from home in kilometres,
+    through <code>log10</code>, onto 0&ndash;360&deg; clockwise from 12. Move anyone and
+    watch their hand travel &mdash; at the real 90&deg;/s, by the shortest path, the way
+    the firmware drives it.
+  </p>
+
+  <div class="layout">
+    <div class="card dial-card">
+      <svg class="dial" id="dial" viewBox="0 0 460 460" role="img"
+           aria-label="Clock dial with six hands showing each person's distance from home">
+        <g id="dial-static"></g>
+        <g id="dial-ghosts"></g>
+        <g id="dial-hands"></g>
+      </svg>
+      <p class="dial-caption">
+        Brass ticks outside the ring mark 1, 10, 100, 1k and 10k kilometres &mdash;
+        each decade is 83.7&deg;. 12 o'clock is home; one full turn is 20&thinsp;015&nbsp;km,
+        the far side of the Earth.
+      </p>
+      <div class="legend" id="legend"></div>
+      <div class="toolbar">
+        <button type="button" id="btn-reference" class="primary">Reference positions</button>
+        <button type="button" id="btn-home">Everyone home</button>
+        <button type="button" id="btn-evan">Evan flies home</button>
+        <button type="button" id="btn-snap">Snap hands to target</button>
+      </div>
+    </div>
+
+    <div>
+      <h2>The six hands</h2>
+      <p class="dek" style="margin-bottom:14px">
+        Hub level sets the hand: level&nbsp;1 is the front motor with the shortest hand,
+        level&nbsp;6 the longest. Pick a place, type coordinates, or drag the distance
+        slider to fake a distance with no real position behind it.
+      </p>
+      <div class="hands" id="hands"></div>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Hand</th>
+              <th>Distance</th>
+              <th>Target</th>
+              <th>Actual</th>
+              <th>Microsteps</th>
+              <th>Clock</th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+
+      <div class="note">
+        <p><strong>The mapping, exactly as the clock computes it</strong></p>
+        <div class="formula">d     = max(haversine(home, person), 1.0)      # km, R = 6371.0
+angle = log10(d) / log10(pi * 6371.0) * 360.0   # deg clockwise from 12</div>
+        <p>
+          So 1&nbsp;km or less is 12 o'clock, 141&nbsp;km is 6 o'clock, and the far side of
+          the Earth is a full turn back to 12. Each decade of distance is 83.7&deg;: the
+          dial spends as much room on the first 10&nbsp;km as on the last 10,000.
+        </p>
+      </div>
+
+      <div class="card" style="margin-top:18px">
+        <h2>Paste live state</h2>
+        <p class="dek" style="margin:6px 0 10px">
+          Once <code>clockd</code> is running, subscribe to <code>clock/state/#</code> and paste
+          what comes back &mdash; one state object, or an array of them &mdash; to see the real
+          clock here.
+        </p>
+        <div class="field">
+          <label for="paste">clock/state payloads</label>
+          <textarea id="paste" spellcheck="false"
+            placeholder='[{"name":"Evan","distance_km":7537.2,"target_deg":324.5,"actual_deg":310.1},
+ {"name":"Austin","distance_km":1106.7,"target_deg":254.8}]'></textarea>
+        </div>
+        <div class="toolbar">
+          <button type="button" id="btn-apply">Apply to dial</button>
+          <span class="slider-value" id="paste-status"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Home is <span id="home-label"></span>. Mapping and colours match
+    <code>birthday_clock.m</code>, <code>build_cad.py</code> and
+    <code>controller/clockd/geo.py</code>. Hand speed 90&deg;/s = 800 microsteps/s at
+    3200 microsteps per revolution.
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+/* ---- the mapping, mirroring controller/clockd/geo.py ------------------- */
+
+const EARTH_RADIUS_KM = 6371.0;
+const MAX_DISTANCE_KM = Math.PI * EARTH_RADIUS_KM;
+const MIN_DISTANCE_KM = 1.0;
+const LOG_SPAN = Math.log10(MAX_DISTANCE_KM);
+const STEPS_PER_REV = 3200;
+const HAND_DEG_PER_S = 90.0;        /* 800 microsteps/s */
+
+const HOME = { name: "Minnetonka, MN", lat: 44.9109, lon: -93.5017 };
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const toRad = Math.PI / 180;
+  const p1 = lat1 * toRad, p2 = lat2 * toRad;
+  const dp = p2 - p1, dl = (lon2 - lon1) * toRad;
+  const a = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+  return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function clampDistance(km) {
+  return Math.min(Math.max(km, MIN_DISTANCE_KM), MAX_DISTANCE_KM);
+}
+
+function distanceToAngle(km) {
+  return Math.log10(clampDistance(km)) / LOG_SPAN * 360.0;
+}
+
+function angleToDistance(deg) {
+  return Math.pow(10, deg / 360.0 * LOG_SPAN);
+}
+
+function wrap180(delta) {
+  const d = ((delta + 180) % 360 + 360) % 360 - 180;
+  return d === -180 ? 180 : d;
+}
+
+function wrap360(deg) {
+  const w = ((deg % 360) + 360) % 360;
+  return w >= 360 ? 0 : w;
+}
+
+/* ---- people: hub level order, colours from build_cad.py ---------------- */
+
+const PLACES = [
+  { label: "Home — Minnetonka, MN", lat: 44.9109, lon: -93.5017 },
+  { label: "St Paul, MN", lat: 44.9537, lon: -93.0900 },
+  { label: "Duluth, MN", lat: 46.7867, lon: -92.1005 },
+  { label: "Wheaton, IL", lat: 41.8661, lon: -88.1070 },
+  { label: "Chicago, IL", lat: 41.8781, lon: -87.6298 },
+  { label: "Boulder, CO", lat: 40.0150, lon: -105.2705 },
+  { label: "Corvallis, OR", lat: 44.5646, lon: -123.2620 },
+  { label: "Seattle, WA", lat: 47.6062, lon: -122.3321 },
+  { label: "New York, NY", lat: 40.7128, lon: -74.0060 },
+  { label: "Reykjavík, Iceland", lat: 64.1466, lon: -21.9426 },
+  { label: "Warsaw, Poland", lat: 52.2297, lon: 21.0122 },
+  { label: "Tokyo, Japan", lat: 35.6762, lon: 139.6503 },
+  { label: "Perth, Australia", lat: -31.9523, lon: 115.8613 },
+];
+
+const PEOPLE = [
+  { name: "Becky",  level: 1, color: "#4F7A4A", lat: 44.9109,  lon: -93.5017 },
+  { name: "Evan",   level: 2, color: "#5B5EA6", lat: 52.2297,  lon: 21.0122 },
+  { name: "Elijah", level: 3, color: "#3E6470", lat: 44.9537,  lon: -93.0900 },
+  { name: "Caleb",  level: 4, color: "#A8672B", lat: 41.8661,  lon: -88.1070 },
+  { name: "Austin", level: 5, color: "#8A4B6B", lat: 40.0150,  lon: -105.2705 },
+  { name: "Micah",  level: 6, color: "#B0562A", lat: 44.5646,  lon: -123.2620 },
+];
+
+/* Each hand's live state. `actual` is unwrapped so a hand can sit at 710 deg
+   after two turns, exactly as the firmware tracks it. */
+const hands = PEOPLE.map((p) => ({
+  name: p.name,
+  level: p.level,
+  color: p.color,
+  lat: p.lat,
+  lon: p.lon,
+  fakeDistanceKm: null,     /* set by the slider: a distance with no position */
+  target: 0,
+  actual: 0,
+}));
+
+function distanceOf(hand) {
+  if (hand.fakeDistanceKm !== null) return hand.fakeDistanceKm;
+  return haversineKm(HOME.lat, HOME.lon, hand.lat, hand.lon);
+}
+
+function recomputeTargets() {
+  for (const hand of hands) hand.target = distanceToAngle(distanceOf(hand));
+}
+
+/* ---- dial geometry ----------------------------------------------------- */
+
+const CX = 230, CY = 230;
+const RING_OUTER = 180, RING_INNER = 152;
+const HOUR_LABEL_R = 166;
+const DECADE_LABEL_R = 201;
+const HUB_R = 13;
+const TIP_R = [100, 109, 118, 127, 136, 145];   /* level 1 shortest, like the CAD */
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function polar(radius, deg) {
+  const rad = deg * Math.PI / 180;
+  return [CX + radius * Math.sin(rad), CY - radius * Math.cos(rad)];
+}
+
+function el(name, attrs, text) {
+  const node = document.createElementNS(SVG_NS, name);
+  for (const [key, value] of Object.entries(attrs || {})) {
+    node.setAttribute(key, String(value));
+  }
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function buildStaticDial() {
+  const g = document.getElementById("dial-static");
+  g.replaceChildren();
+
+  g.appendChild(el("circle", {
+    cx: CX, cy: CY, r: RING_OUTER,
+    fill: "var(--dial)", stroke: "var(--brass)", "stroke-width": 2,
+  }));
+  g.appendChild(el("circle", {
+    cx: CX, cy: CY, r: RING_INNER,
+    fill: "none", stroke: "var(--brass)", "stroke-width": 1.2, opacity: 0.8,
+  }));
+
+  /* Minor ticks every 6 deg, major every 30 deg (the hour positions). */
+  for (let deg = 0; deg < 360; deg += 6) {
+    const major = deg % 30 === 0;
+    const [x1, y1] = polar(RING_INNER, deg);
+    const [x2, y2] = polar(major ? RING_OUTER - 3 : RING_OUTER - 12, deg);
+    g.appendChild(el("line", {
+      x1, y1, x2, y2,
+      stroke: major ? "var(--ink)" : "var(--edge)",
+      "stroke-width": major ? 2 : 1,
+      opacity: major ? 0.85 : 0.6,
+      "stroke-linecap": "round",
+    }));
+  }
+
+  /* Hour numerals. Only 12 to 6 is ever reached by a real distance under
+     141 km, but a hand can point anywhere, so all twelve are marked. */
+  const hours = ["12", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"];
+  hours.forEach((label, index) => {
+    const deg = index * 30;
+    const [x, y] = polar(HOUR_LABEL_R, deg);
+    g.appendChild(el("text", {
+      x, y,
+      "text-anchor": "middle",
+      "dominant-baseline": "central",
+      "font-size": label === "12" ? 17 : 14,
+      "font-weight": label === "12" ? 700 : 500,
+      fill: "var(--ink)",
+      opacity: index <= 6 ? 1 : 0.35,
+    }, label));
+  });
+
+  /* Decade marks outside the ring: this is the scale that matters. */
+  const decades = [
+    // The 1 km tick lands on the 12, whose numeral already means home, so it
+    // gets a tick and no label: two numbers stacked there read as one.
+    { km: 1, label: "" },
+    { km: 10, label: "10" },
+    { km: 100, label: "100" },
+    { km: 1000, label: "1k" },
+    { km: 10000, label: "10k" },
+  ];
+  for (const decade of decades) {
+    const deg = distanceToAngle(decade.km);
+    const [x1, y1] = polar(RING_OUTER + 2, deg);
+    const [x2, y2] = polar(RING_OUTER + 11, deg);
+    g.appendChild(el("line", {
+      x1, y1, x2, y2, stroke: "var(--accent)", "stroke-width": 2, "stroke-linecap": "round",
+    }));
+    if (!decade.label) continue;
+    const [tx, ty] = polar(DECADE_LABEL_R, deg);
+    g.appendChild(el("text", {
+      x: tx, y: ty,
+      "text-anchor": "middle",
+      "dominant-baseline": "central",
+      "font-size": 11,
+      fill: "var(--accent-ink)",
+    }, decade.label));
+  }
+
+  /* 20 015 km, the antipode, lands back at 12 after one full turn. */
+  g.appendChild(el("text", {
+    x: CX, y: CY + 56,
+    "text-anchor": "middle",
+    "font-size": 10.5,
+    fill: "var(--muted)",
+  }, "12 = home · one full turn = 20 015 km"));
+
+  g.appendChild(el("circle", {
+    cx: CX, cy: CY, r: HUB_R + 5,
+    fill: "var(--dial)", stroke: "var(--brass)", "stroke-width": 1.5,
+  }));
+}
+
+function handPath(radius, deg, width) {
+  const [tipX, tipY] = polar(radius, deg);
+  const [baseLX, baseLY] = polar(HUB_R, deg - width);
+  const [baseRX, baseRY] = polar(HUB_R, deg + width);
+  return `M ${baseLX.toFixed(2)} ${baseLY.toFixed(2)} ` +
+         `L ${tipX.toFixed(2)} ${tipY.toFixed(2)} ` +
+         `L ${baseRX.toFixed(2)} ${baseRY.toFixed(2)} Z`;
+}
+
+function drawHands() {
+  const ghosts = document.getElementById("dial-ghosts");
+  const solid = document.getElementById("dial-hands");
+  ghosts.replaceChildren();
+  solid.replaceChildren();
+
+  hands.forEach((hand, index) => {
+    const radius = TIP_R[hand.level - 1];
+    const travelling = Math.abs(wrap180(hand.target - hand.actual)) > 0.05;
+
+    if (travelling) {
+      ghosts.appendChild(el("path", {
+        d: handPath(radius, hand.target, 26),
+        fill: hand.color,
+        opacity: 0.22,
+      }));
+      const [gx, gy] = polar(radius + 9, hand.target);
+      ghosts.appendChild(el("circle", { cx: gx, cy: gy, r: 2.5, fill: hand.color, opacity: 0.5 }));
+    }
+
+    solid.appendChild(el("path", {
+      d: handPath(radius, hand.actual, 20),
+      fill: hand.color,
+      stroke: "var(--dial)",
+      "stroke-width": 0.8,
+    }));
+    const [tipX, tipY] = polar(radius, hand.actual);
+    solid.appendChild(el("circle", {
+      cx: tipX, cy: tipY, r: 3.4, fill: hand.color,
+      stroke: "var(--dial)", "stroke-width": 1,
+    }));
+    solid.setAttribute("data-count", String(index));
+  });
+
+  solid.appendChild(el("circle", {
+    cx: CX, cy: CY, r: HUB_R, fill: "var(--brass)", stroke: "var(--ink)", "stroke-width": 1,
+  }));
+}
+
+/* ---- controls ---------------------------------------------------------- */
+
+/* The slider is linear in angle, which makes it linear in log distance -- the
+   same scale as the dial, so dragging it moves the hand at a steady rate. */
+function sliderToKm(value) {
+  return angleToDistance(Number(value));
+}
+function kmToSlider(km) {
+  return distanceToAngle(km);
+}
+
+function formatKm(km) {
+  if (km < 1) return km.toFixed(2) + " km";
+  if (km < 10) return km.toFixed(1) + " km";
+  if (km < 10000) return Math.round(km).toLocaleString("en-US") + " km";
+  return Math.round(km).toLocaleString("en-US") + " km";
+}
+
+function clockPosition(deg) {
+  /* Which hour mark the hand is nearest, as "between 4 and 5" reads better
+     than 139 degrees when you are standing at the clock. */
+  const hour = wrap360(deg) / 30;
+  const whole = Math.floor(hour) || 12;
+  const minutes = Math.round((hour - Math.floor(hour)) * 60);
+  const label = (Math.floor(hour) === 0 ? 12 : Math.floor(hour));
+  return `${label}:${String(minutes).padStart(2, "0")}`;
+}
+
+function buildControls() {
+  const container = document.getElementById("hands");
+  container.replaceChildren();
+
+  hands.forEach((hand, index) => {
+    const row = document.createElement("div");
+    row.className = "hand";
+
+    const head = document.createElement("div");
+    head.className = "hand-head";
+    const swatch = document.createElement("span");
+    swatch.className = "sw";
+    swatch.style.background = hand.color;
+    const name = document.createElement("span");
+    name.className = "hand-name";
+    name.textContent = hand.name;
+    const level = document.createElement("span");
+    level.className = "hand-level";
+    level.textContent = `level ${hand.level} · ch ${hand.level - 1}`;
+    const readout = document.createElement("span");
+    readout.className = "hand-readout";
+    readout.id = `readout-${index}`;
+    head.append(swatch, name, level, readout);
+
+    const controls = document.createElement("div");
+    controls.className = "hand-controls";
+
+    const placeField = document.createElement("div");
+    placeField.className = "field field-place";
+    const placeLabel = document.createElement("label");
+    placeLabel.htmlFor = `place-${index}`;
+    placeLabel.textContent = "Place";
+    const place = document.createElement("select");
+    place.id = `place-${index}`;
+    const custom = document.createElement("option");
+    custom.value = "";
+    custom.textContent = "Custom coordinates";
+    place.appendChild(custom);
+    PLACES.forEach((p, pi) => {
+      const option = document.createElement("option");
+      option.value = String(pi);
+      option.textContent = p.label;
+      place.appendChild(option);
+    });
+    place.addEventListener("change", () => {
+      const chosen = PLACES[Number(place.value)];
+      if (!chosen) return;
+      hand.lat = chosen.lat;
+      hand.lon = chosen.lon;
+      hand.fakeDistanceKm = null;
+      syncInputs();
+      recomputeTargets();
+      render();
+    });
+    placeField.append(placeLabel, place);
+
+    const latField = document.createElement("div");
+    latField.className = "field";
+    const latLabel = document.createElement("label");
+    latLabel.htmlFor = `lat-${index}`;
+    latLabel.textContent = "Latitude";
+    const lat = document.createElement("input");
+    lat.type = "number";
+    lat.step = "0.0001";
+    lat.min = "-90";
+    lat.max = "90";
+    lat.id = `lat-${index}`;
+    latField.append(latLabel, lat);
+
+    const lonField = document.createElement("div");
+    lonField.className = "field";
+    const lonLabel = document.createElement("label");
+    lonLabel.htmlFor = `lon-${index}`;
+    lonLabel.textContent = "Longitude";
+    const lon = document.createElement("input");
+    lon.type = "number";
+    lon.step = "0.0001";
+    lon.min = "-180";
+    lon.max = "180";
+    lon.id = `lon-${index}`;
+    lonField.append(lonLabel, lon);
+
+    const onCoords = () => {
+      const latValue = Number(lat.value);
+      const lonValue = Number(lon.value);
+      if (!Number.isFinite(latValue) || !Number.isFinite(lonValue)) return;
+      hand.lat = Math.max(-90, Math.min(90, latValue));
+      hand.lon = Math.max(-180, Math.min(180, lonValue));
+      hand.fakeDistanceKm = null;
+      place.value = "";
+      recomputeTargets();
+      render();
+    };
+    lat.addEventListener("input", onCoords);
+    lon.addEventListener("input", onCoords);
+
+    controls.append(placeField, latField, lonField);
+
+    const sliderRow = document.createElement("div");
+    sliderRow.className = "slider-row";
+    const sliderField = document.createElement("div");
+    sliderField.className = "field";
+    const sliderLabel = document.createElement("label");
+    sliderLabel.htmlFor = `dist-${index}`;
+    sliderLabel.textContent = "Fake distance";
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = "0";
+    slider.max = "360";
+    slider.step = "0.5";
+    slider.id = `dist-${index}`;
+    slider.addEventListener("input", () => {
+      hand.fakeDistanceKm = sliderToKm(slider.value);
+      place.value = "";
+      recomputeTargets();
+      render();
+    });
+    sliderField.append(sliderLabel, slider);
+    const sliderValue = document.createElement("span");
+    sliderValue.className = "slider-value";
+    sliderValue.id = `sliderval-${index}`;
+    sliderRow.append(sliderField, sliderValue);
+
+    row.append(head, controls, sliderRow);
+    container.appendChild(row);
+  });
+}
+
+function buildLegend() {
+  const legend = document.getElementById("legend");
+  legend.replaceChildren();
+  hands.forEach((hand) => {
+    const item = document.createElement("span");
+    const swatch = document.createElement("span");
+    swatch.className = "sw";
+    swatch.style.background = hand.color;
+    item.append(swatch, document.createTextNode(hand.name));
+    legend.appendChild(item);
+  });
+  const ghost = document.createElement("span");
+  ghost.textContent = "faint = target, solid = where the hand is";
+  legend.appendChild(ghost);
+}
+
+function syncInputs() {
+  hands.forEach((hand, index) => {
+    const lat = document.getElementById(`lat-${index}`);
+    const lon = document.getElementById(`lon-${index}`);
+    const slider = document.getElementById(`dist-${index}`);
+    if (lat && document.activeElement !== lat) lat.value = hand.lat.toFixed(4);
+    if (lon && document.activeElement !== lon) lon.value = hand.lon.toFixed(4);
+    if (slider && document.activeElement !== slider) {
+      slider.value = String(kmToSlider(distanceOf(hand)));
+    }
+  });
+}
+
+function render() {
+  drawHands();
+  const body = document.getElementById("table-body");
+  body.replaceChildren();
+
+  hands.forEach((hand, index) => {
+    const km = distanceOf(hand);
+    const steps = Math.round(hand.target / 360 * STEPS_PER_REV);
+    const fake = hand.fakeDistanceKm !== null;
+
+    const readout = document.getElementById(`readout-${index}`);
+    if (readout) {
+      readout.textContent = `${formatKm(km)} · ${hand.target.toFixed(1)}°`;
+    }
+    const sliderValue = document.getElementById(`sliderval-${index}`);
+    if (sliderValue) {
+      sliderValue.textContent = fake ? `${formatKm(km)} (fake)` : formatKm(km);
+      sliderValue.style.color = fake ? "var(--warn)" : "var(--muted)";
+    }
+
+    const tr = document.createElement("tr");
+    const cells = [
+      hand.name,
+      formatKm(km),
+      `${hand.target.toFixed(1)}°`,
+      `${wrap360(hand.actual).toFixed(1)}°`,
+      steps.toLocaleString("en-US"),
+      clockPosition(hand.target),
+    ];
+    cells.forEach((value, cellIndex) => {
+      const cell = document.createElement("td");
+      if (cellIndex === 0) {
+        const swatch = document.createElement("span");
+        swatch.className = "sw";
+        swatch.style.background = hand.color;
+        swatch.style.marginRight = "7px";
+        cell.append(swatch, document.createTextNode(value));
+      } else {
+        cell.textContent = value;
+      }
+      if (cellIndex === 1 && fake) {
+        const badge = document.createElement("span");
+        badge.className = "badge fake";
+        badge.textContent = "fake";
+        badge.style.marginLeft = "6px";
+        cell.appendChild(badge);
+      }
+      tr.appendChild(cell);
+    });
+    body.appendChild(tr);
+  });
+
+  syncInputs();
+}
+
+/* ---- hand travel ------------------------------------------------------- */
+
+let lastFrame = null;
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function frame(now) {
+  if (lastFrame === null) lastFrame = now;
+  const dt = Math.min((now - lastFrame) / 1000, 0.1);
+  lastFrame = now;
+
+  let moved = false;
+  for (const hand of hands) {
+    const delta = wrap180(hand.target - hand.actual);
+    if (Math.abs(delta) < 0.02) {
+      if (hand.actual !== hand.target && Math.abs(delta) > 0) {
+        hand.actual += delta;
+        moved = true;
+      }
+      continue;
+    }
+    const step = Math.min(Math.abs(delta), HAND_DEG_PER_S * dt);
+    hand.actual += Math.sign(delta) * step;
+    moved = true;
+  }
+  if (moved) render();
+  requestAnimationFrame(frame);
+}
+
+function snapHands() {
+  for (const hand of hands) hand.actual = hand.target;
+  render();
+}
+
+/* ---- scenarios --------------------------------------------------------- */
+
+function setReference() {
+  PEOPLE.forEach((person, index) => {
+    hands[index].lat = person.lat;
+    hands[index].lon = person.lon;
+    hands[index].fakeDistanceKm = null;
+    const place = document.getElementById(`place-${index}`);
+    if (place) {
+      const match = PLACES.findIndex(
+        (p) => Math.abs(p.lat - person.lat) < 1e-4 && Math.abs(p.lon - person.lon) < 1e-4
+      );
+      place.value = match >= 0 ? String(match) : "";
+    }
+  });
+  recomputeTargets();
+  render();
+}
+
+function everyoneHome() {
+  hands.forEach((hand, index) => {
+    hand.lat = HOME.lat;
+    hand.lon = HOME.lon;
+    hand.fakeDistanceKm = null;
+    const place = document.getElementById(`place-${index}`);
+    if (place) place.value = "0";
+  });
+  recomputeTargets();
+  render();
+}
+
+let flight = null;
+
+/* Warsaw to the front door, 7 537 km of it, as a sequence of real waypoints --
+   which is the scenario the spec asks the Simulate page to play back. */
+const EVAN_ROUTE = [
+  { lat: 52.2297, lon: 21.0122, hold: 1200 },    /* Warsaw */
+  { lat: 52.1657, lon: 20.9671, hold: 900 },     /* Warsaw Chopin */
+  { lat: 50.0379, lon: 8.5622, hold: 1400 },     /* Frankfurt */
+  { lat: 51.4700, lon: -0.4543, hold: 1400 },    /* Heathrow */
+  { lat: 45.0000, lon: -45.0000, hold: 1600 },   /* mid Atlantic */
+  { lat: 41.9742, lon: -87.9073, hold: 1600 },   /* Chicago O'Hare */
+  { lat: 44.8848, lon: -93.2223, hold: 1600 },   /* MSP */
+  { lat: 44.9109, lon: -93.5017, hold: 0 },      /* home */
+];
+
+function flyEvanHome() {
+  const index = hands.findIndex((h) => h.name === "Evan");
+  if (index < 0) return;
+  if (flight) {
+    clearTimeout(flight);
+    flight = null;
+  }
+  const hand = hands[index];
+  hand.fakeDistanceKm = null;
+  const place = document.getElementById(`place-${index}`);
+  if (place) place.value = "";
+
+  let leg = 0;
+  const advance = () => {
+    const point = EVAN_ROUTE[leg];
+    hand.lat = point.lat;
+    hand.lon = point.lon;
+    recomputeTargets();
+    render();
+    leg += 1;
+    if (leg < EVAN_ROUTE.length) {
+      flight = setTimeout(advance, reduceMotion ? 300 : point.hold);
+    } else {
+      flight = null;
+    }
+  };
+  advance();
+}
+
+/* ---- paste live state -------------------------------------------------- */
+
+function applyPasted() {
+  const field = document.getElementById("paste");
+  const status = document.getElementById("paste-status");
+  const text = field.value.trim();
+  if (!text) {
+    status.textContent = "Nothing to apply.";
+    return;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    status.textContent = "That is not valid JSON.";
+    status.style.color = "var(--warn)";
+    return;
+  }
+  const list = Array.isArray(parsed) ? parsed : [parsed];
+  let applied = 0;
+  for (const entry of list) {
+    if (!entry || typeof entry !== "object") continue;
+    const name = String(entry.name || entry.person || "").trim().toLowerCase();
+    const hand = hands.find((h) => h.name.toLowerCase() === name);
+    if (!hand) continue;
+    if (typeof entry.distance_km === "number" && Number.isFinite(entry.distance_km)) {
+      hand.fakeDistanceKm = entry.distance_km;
+    } else if (typeof entry.target_deg === "number" && Number.isFinite(entry.target_deg)) {
+      hand.fakeDistanceKm = angleToDistance(wrap360(entry.target_deg));
+    }
+    if (typeof entry.actual_deg === "number" && Number.isFinite(entry.actual_deg)) {
+      hand.actual = entry.actual_deg;
+    }
+    applied += 1;
+  }
+  recomputeTargets();
+  render();
+  status.style.color = applied ? "var(--good)" : "var(--warn)";
+  status.textContent = applied
+    ? `Applied ${applied} ${applied === 1 ? "hand" : "hands"}.`
+    : "No names in that payload matched a hand.";
+}
+
+/* ---- boot -------------------------------------------------------------- */
+
+document.getElementById("home-label").textContent =
+  `${HOME.name} (${HOME.lat.toFixed(4)}, ${HOME.lon.toFixed(4)})`;
+
+buildStaticDial();
+buildLegend();
+buildControls();
+setReference();
+snapHands();
+
+document.getElementById("btn-reference").addEventListener("click", setReference);
+document.getElementById("btn-home").addEventListener("click", everyoneHome);
+document.getElementById("btn-evan").addEventListener("click", flyEvanHome);
+document.getElementById("btn-snap").addEventListener("click", snapHands);
+document.getElementById("btn-apply").addEventListener("click", applyPasted);
+
+requestAnimationFrame(frame);
+</script>

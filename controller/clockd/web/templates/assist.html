@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block page_title %}Assist &middot; {{ title }}{% endblock %}
+{% block content %}
+<h1>Set the hands</h1>
+<p class="lede">For whoever is standing at the clock. Take one hand at a time: nudge it
+until it points straight up at 12, then tap <strong>This hand is at 12</strong>. Nothing you
+do here can break anything.</p>
+
+<div class="card" id="wizard">
+  <div id="step-intro">
+    <h2>Before you start</h2>
+    <ol style="padding-left:20px;line-height:1.75">
+      <li>Make sure nobody has a hand in the clock.</li>
+      <li>The hands will move a little while you do this. That is normal.</li>
+      <li>It takes about a minute per hand, six hands in all.</li>
+    </ol>
+    <div class="note" id="link-warning" hidden>
+      <strong>The clock is not responding.</strong> The little computer inside is not
+      talking to the motors right now, so the buttons below will not do anything.
+      Tell Austin before you carry on.
+    </div>
+    <button class="primary big" id="start" type="button" style="width:100%">Start</button>
+  </div>
+
+  <div id="step-hand" hidden>
+    <div class="row" style="margin-bottom:6px">
+      <span class="badge" id="progress"></span>
+      <span class="spacer"></span>
+      <button class="small ghost" id="skip" type="button">Skip this hand</button>
+    </div>
+
+    <h2 style="display:flex;align-items:center;gap:10px">
+      <span class="sw" id="hand-color" style="width:20px;height:20px"></span>
+      <span id="hand-name"></span>
+    </h2>
+    <p class="lede" id="hand-hint">
+      Find the hand in this colour. Use the big arrows until its tip points straight up
+      at the 12, then tap the green button.
+    </p>
+
+    <div id="assist-dial" style="max-width:320px;margin:0 auto"></div>
+
+    <div class="row" style="justify-content:center;margin-top:14px">
+      <button class="big" data-jog="-10" type="button" style="flex:1 1 110px">&#8630;&#8630; back a lot</button>
+      <button class="big" data-jog="-1" type="button" style="flex:1 1 90px">&#8630; back</button>
+      <button class="big" data-jog="1" type="button" style="flex:1 1 90px">forward &#8631;</button>
+      <button class="big" data-jog="10" type="button" style="flex:1 1 110px">forward a lot &#8631;&#8631;</button>
+    </div>
+    <div class="row" style="justify-content:center;margin-top:8px">
+      <button data-jog="-0.2" type="button">tiny nudge back</button>
+      <button data-jog="0.2" type="button">tiny nudge forward</button>
+    </div>
+
+    <button class="primary big" id="set-zero" type="button"
+            style="width:100%;margin-top:16px;background:var(--ok);border-color:var(--ok)">
+      This hand is at 12
+    </button>
+    <p class="small muted" style="text-align:center;margin:8px 0 0" id="hand-status"></p>
+  </div>
+
+  <div id="step-done" hidden>
+    <h2>All done</h2>
+    <p class="lede" id="done-summary"></p>
+    <button class="primary big" id="go-live" type="button" style="width:100%">
+      Put every hand where it belongs
+    </button>
+    <p class="small muted" style="margin:10px 0 0">
+      This sends each hand to where that person actually is right now. Watch for a few
+      seconds: every hand should move and then stop.
+    </p>
+    <button id="restart-wizard" type="button" style="width:100%;margin-top:10px">Start again</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+const ui = window.clockui;
+let order = [];
+let index = 0;
+let zeroed = [];
+
+ui.buildDial(document.getElementById("assist-dial"));
+
+function show(step) {
+  for (const name of ["intro", "hand", "done"]) {
+    document.getElementById("step-" + name).hidden = (name !== step);
+  }
+}
+
+function current() {
+  return order[index] || null;
+}
+
+function renderHand() {
+  const person = current();
+  if (!person) { finish(); return; }
+  document.getElementById("hand-color").style.background = person.color;
+  document.getElementById("hand-name").textContent = person.name + "'s hand";
+  document.getElementById("progress").textContent = `hand ${index + 1} of ${order.length}`;
+}
+
+function finish() {
+  show("done");
+  document.getElementById("done-summary").textContent = zeroed.length
+    ? `${zeroed.length} hand${zeroed.length > 1 ? "s" : ""} set: ${zeroed.join(", ")}.`
+    : "No hands were set.";
+}
+
+document.getElementById("start").onclick = () => {
+  const state = ui.latest;
+  if (!state) { ui.toast("Still loading.", true); return; }
+  order = state.people.filter((p) => p.enabled);
+  index = 0;
+  zeroed = [];
+  if (!order.length) { ui.toast("No hands are switched on in the config.", true); return; }
+  /* Release the drivers so the hands turn freely? No: the jog buttons need the
+     drivers on, and a released hand can be knocked out of place while the
+     person walks round the clock. Enable and keep them enabled. */
+  ui.api("/api/enable", { on: true }).catch(() => {});
+  show("hand");
+  renderHand();
+};
+
+for (const button of document.querySelectorAll("[data-jog]")) {
+  button.onclick = async () => {
+    const person = current();
+    if (!person) return;
+    const degrees = Number(button.dataset.jog);
+    try {
+      await ui.api("/api/jog", { person: person.slug, degrees });
+      document.getElementById("hand-status").textContent =
+        `moved ${degrees > 0 ? "forward" : "back"} ${Math.abs(degrees)}°`;
+    } catch (error) {
+      document.getElementById("hand-status").textContent = "that did not work";
+    }
+  };
+}
+
+document.getElementById("set-zero").onclick = () => {
+  const person = current();
+  if (!person) return;
+  ui.confirmAction(`Is ${person.name}'s hand pointing straight up at the 12?`, async () => {
+    try {
+      await ui.api("/api/zero", { person: person.slug });
+      zeroed.push(person.name);
+      ui.toast(person.name + "'s hand is set");
+      index += 1;
+      document.getElementById("hand-status").textContent = "";
+      if (index >= order.length) finish(); else renderHand();
+    } catch (error) { /* already toasted */ }
+  });
+};
+
+document.getElementById("skip").onclick = () => {
+  index += 1;
+  document.getElementById("hand-status").textContent = "";
+  if (index >= order.length) finish(); else renderHand();
+};
+
+document.getElementById("go-live").onclick = () =>
+  ui.api("/api/resume-live").then((r) => ui.toast(`Moving ${r.moved} hands into place`));
+
+document.getElementById("restart-wizard").onclick = () => { show("intro"); };
+
+ui.onState((state) => {
+  const person = current();
+  /* On the wizard, draw only the hand being worked on, so the person at the
+     clock is not trying to tell six overlapping hands apart. */
+  ui.drawHands(state.people, person ? { only: person.slug } : {});
+  const warning = document.getElementById("link-warning");
+  if (warning) warning.hidden = !!(state.pico && state.pico.connected);
+  if (person) {
+    const live = state.people.find((p) => p.slug === person.slug);
+    if (live) order[index] = live;
+  }
+});
+</script>
+{% endblock %}
