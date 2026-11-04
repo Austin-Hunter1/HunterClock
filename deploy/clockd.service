@@ -1,0 +1,57 @@
+# Weasley Clock controller.
+#
+#   sudo cp deploy/clockd.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now clockd
+#
+# deploy/install.sh does this for you, and templates the paths below.
+
+[Unit]
+Description=Weasley Clock controller (clockd)
+Documentation=https://github.com/Austin-Hunter1/HunterClock
+After=network-online.target mosquitto.service
+Wants=network-online.target
+# The controller runs fine with the broker down (it says so in the UI), so this
+# is Wants, not Requires: a broker that fails to start must not take the clock
+# with it.
+Wants=mosquitto.service
+
+[Service]
+Type=simple
+User=hunterboys
+Group=hunterboys
+WorkingDirectory=/home/hunterboys/HunterClock
+
+# Secrets live here and nowhere else. The file is 0600 and gitignored.
+EnvironmentFile=-/home/hunterboys/HunterClock/.env
+Environment=PYTHONUNBUFFERED=1
+
+ExecStart=/home/hunterboys/HunterClock/.venv/bin/python -m clockd.cli
+
+Restart=always
+RestartSec=5
+# Do not give up: a clock that stops restarting after five crashes is a clock
+# that is dead until someone drives to it.
+StartLimitIntervalSec=0
+
+# The hands are stopped by the firmware watchdog when the controller goes away,
+# so a clean SIGTERM and a short wait is enough.
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=clockd
+
+# Modest hardening. The controller needs the serial port (dialout) and its own
+# working directory; it needs nothing else.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/hunterboys/HunterClock/var /home/hunterboys/HunterClock/config
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target
