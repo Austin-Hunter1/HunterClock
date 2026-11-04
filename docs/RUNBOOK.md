@@ -160,6 +160,129 @@ active.
 
 ---
 
+## 2.2 Connecting Find My
+
+**Apple has no public Find My API.** Nothing can query it directly, and anything
+claiming otherwise is logging into iCloud with your password. So "Find My" here
+means going through Home Assistant, which does that part and gives you a clean
+entity to read.
+
+Three routes. Not really alternatives: a primary and two supplements.
+
+### Route 1 - OwnTracks. Use this one.
+
+A free app on each phone that publishes straight to the Pi's MQTT broker. No
+Apple account, no middleman, no rate limits, and it is the source this clock was
+built around.
+
+On each phone: install OwnTracks, then **Settings -> Connection**:
+
+| Field | Value |
+|---|---|
+| Mode | MQTT |
+| Host | `weasley-clock` (or the Pi's Tailscale IP) |
+| Port | 1883 |
+| Username | `clock` |
+| Password | the one in `.env` |
+| Device ID | anything; `iphone` is fine |
+| **Username (identification)** | **must match `owntracks.user` in `config/clock.yaml`** |
+
+That last row is the one people get wrong. The topic is
+`owntracks/<user>/<device>` and the controller matches on `<user>`.
+
+Set the app to **Significant Changes**, not Manual. Then walk outside and watch
+the Logs page: the fix should arrive, be accepted, and command a move.
+
+The catch: the phones have to reach the broker. Inside the house that is the
+local network; outside it they need Tailscale on the phone too, or the broker
+exposed to the internet, which you do not want. Install Tailscale on the phones.
+
+### Route 2 - Find My, through Home Assistant
+
+What `docs/hardware-plan.html` planned for, and worth having, because everyone
+already carries an iPhone and nobody has to keep an app alive.
+
+1. **Run Home Assistant somewhere.** It can be the same Pi, but a separate box
+   is kinder: Home Assistant is a much bigger thing than this controller, and
+   you do not want its upgrades taking the clock down with them.
+2. **Add the iCloud integration.** Settings -> Devices & services -> Add
+   integration -> Apple iCloud. It wants the Apple ID and a 2FA code. Each
+   person needs their own account added, or one Family Sharing account that can
+   see the others.
+3. **Check what you got**, before editing any config:
+
+```bash
+export HASS_TOKEN='...'
+python tools/hass_check.py --url http://homeassistant.local:8123
+```
+
+The token comes from Home Assistant: your profile (bottom left) -> Security ->
+Long-lived access tokens. The tool prints every tracker, whether it carries
+coordinates, and where each one would put its hand right now using the clock's
+own mapping. It only reads, and it never prints the token. A line reading
+`no ... state=home, no coordinates` is a tracker that cannot drive a hand: a
+router-based one, or a phone that is offline.
+
+4. Put the entity ids it suggests into `config/clock.yaml` under each person's
+   `hass_entity`, set `sources.hass.enabled: true`, and restart.
+
+**Expect this to break every few weeks.** Apple rate-limits iCloud and a 2FA
+re-prompt stops it dead until somebody re-authenticates in Home Assistant. The
+hardware plan says the same, which is why this is route 2. When it does break
+the hands go `stale` and hold their last position; they do not jump to nonsense.
+
+### Route 3 - anything else, through generic MQTT
+
+Any other source of a position - an Apple Shortcuts automation, a Home
+Assistant automation that pushes instead of waiting to be polled, a script:
+
+```bash
+mosquitto_pub -h weasley-clock -u clock -P "$MQTT_PASSWORD" \
+  -t clock/location/austin \
+  -m '{"lat":40.0150,"lon":-105.2705,"acc":30}'
+```
+
+A Home Assistant automation doing the same, which skips the polling entirely:
+
+```yaml
+automation:
+  - alias: Push Austin to the clock
+    trigger:
+      - platform: state
+        entity_id: device_tracker.austin_iphone
+    action:
+      - service: mqtt.publish
+        data:
+          topic: clock/location/austin
+          payload: >-
+            {"lat": {{ state_attr('device_tracker.austin_iphone','latitude') }},
+             "lon": {{ state_attr('device_tracker.austin_iphone','longitude') }},
+             "acc": {{ state_attr('device_tracker.austin_iphone','gps_accuracy') | default(100) }}}
+```
+
+### Which source wins
+
+All of them can run at once. `sources.priority` decides, defaulting to
+`[manual, owntracks, generic_mqtt, hass]` - a manual override beats everything,
+then OwnTracks, with Find My last because it is the least reliable. In practice
+whichever source produces an acceptable fix most recently moves the hand, and
+the filters reject the stale and the vague wherever they came from.
+
+The Simulate page has a switch per source, so you can turn Find My off for an
+afternoon and see whether OwnTracks alone keeps up.
+
+### What to expect once it is live
+
+* **Find My is not continuous.** A stationary phone may not report for a long
+  time. That is normal; `stale_after_s` (6 h) decides when to flag it.
+* **Accuracy varies hugely.** A phone on WiFi reports tens of metres, one on a
+  cell tower can report kilometres. Anything worse than `max_accuracy_m`
+  (2000 m) is rejected, and `hass_check.py` flags those in advance.
+* **A hand only moves for a change over 0.5 degrees.** On a log scale that is a
+  real distance at range: crossing town moves a hand, crossing a room does not.
+
+---
+
 ## 3. What each status means
 
 | Status | Means | Do |

@@ -13,7 +13,7 @@ has ever run it.
 ## Status: 2026-11-04, push 8
 
 **P0 and P1 are complete. P2 is done except the fallback hotspot.**
-512 tests pass; `ruff check .` is clean; the ESP32 firmware compiles.
+528 tests pass; `ruff check .` is clean; the ESP32 firmware compiles.
 
 ---
 
@@ -117,6 +117,7 @@ configured by environment variable only.
 | `test_api.py` | 61 | auth, pages, actions, config save, diagnostics |
 | `test_loopfile.py` | 22 | the `.wcl` container, byte for byte, and the ffmpeg filter |
 | `test_alerts.py` | 20 | debounce, cooldown, recovery, and the engine's conditions |
+| `test_hass_integration.py` | 16 | the Find My route, against a fake Home Assistant |
 
 Checks worth naming:
 
@@ -180,8 +181,11 @@ hardware was connected in the session that wrote it. Specifically:
   practice Tailscale plus two pre-saved WiFi networks covers the same ground,
   and a hotspot the Pi falls back to is another thing that can go wrong
   unattended.
-* **Home Assistant source** is written and unit-tested, but has never polled a
-  real Home Assistant.
+* **Home Assistant source** is now tested end to end against a fake Home
+  Assistant serving realistic `device_tracker` payloads: the full route from an
+  entity to commanded microsteps, all six spec angles, plus a wrong token, a
+  missing entity, HA being down, a phone with no coordinates, and a coarse fix
+  being filtered. Still never polled a *real* Home Assistant.
 
 ---
 
