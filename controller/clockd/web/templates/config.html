@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block page_title %}Config &middot; {{ title }}{% endblock %}
+{% block content %}
+<h1>Config</h1>
+<p class="lede">The whole clock in one YAML file. Validate before you save: a bad config
+stops the controller starting, and this clock is in another state.
+The old file is backed up automatically on every save.</p>
+
+<div class="row" style="margin-bottom:10px">
+  <button class="primary" id="validate" type="button">Validate</button>
+  <button id="save" type="button" disabled>Save (and back up)</button>
+  <button id="reload" type="button">Reload from disk</button>
+  <span class="spacer"></span>
+  <span class="mono small muted" id="source"></span>
+</div>
+
+<textarea id="yaml" spellcheck="false" style="min-height:52vh;font-size:13px"></textarea>
+
+<div id="result" style="margin-top:14px"></div>
+{% endblock %}
+
+{% block script %}
+<script>
+const ui = window.clockui;
+let validated = false;
+
+async function load() {
+  const data = await ui.api("/api/config");
+  document.getElementById("yaml").value = data.text;
+  document.getElementById("source").textContent = data.source;
+  validated = false;
+  document.getElementById("save").disabled = true;
+  document.getElementById("result").replaceChildren();
+}
+
+document.getElementById("yaml").oninput = () => {
+  validated = false;
+  document.getElementById("save").disabled = true;
+};
+
+document.getElementById("validate").onclick = async () => {
+  const result = document.getElementById("result");
+  result.replaceChildren();
+  const data = await ui.api("/api/config/validate", { text: document.getElementById("yaml").value });
+  if (!data.ok) {
+    const box = document.createElement("div");
+    box.className = "banner bad";
+    box.style.display = "block";
+    box.textContent = data.error;
+    box.style.whiteSpace = "pre-wrap";
+    result.appendChild(box);
+    validated = false;
+    document.getElementById("save").disabled = true;
+    return;
+  }
+  validated = true;
+  document.getElementById("save").disabled = false;
+
+  const ok = document.createElement("div");
+  ok.className = "banner ok";
+  ok.textContent = "Valid. " + (data.diff.length
+    ? data.diff.filter((d) => d.kind === "add" || d.kind === "remove").length + " lines differ from what is running."
+    : "Identical to what is running.");
+  result.appendChild(ok);
+
+  const summary = document.createElement("div");
+  summary.className = "card";
+  summary.style.marginTop = "10px";
+  const dl = document.createElement("dl");
+  dl.className = "kv";
+  for (const [key, value] of Object.entries(data.summary)) {
+    const dt = document.createElement("dt");
+    dt.textContent = key;
+    const dd = document.createElement("dd");
+    dd.textContent = Array.isArray(value) ? value.join(", ") : String(value);
+    dl.append(dt, dd);
+  }
+  summary.appendChild(dl);
+  result.appendChild(summary);
+
+  if (data.diff.length) {
+    const diff = document.createElement("div");
+    diff.className = "diff";
+    diff.style.marginTop = "10px";
+    for (const line of data.diff) {
+      const row = document.createElement("div");
+      row.className = line.kind;
+      row.textContent = line.text;
+      diff.appendChild(row);
+    }
+    result.appendChild(diff);
+  }
+};
+
+document.getElementById("save").onclick = () => {
+  if (!validated) { ui.toast("Validate first.", true); return; }
+  ui.confirmAction(
+    "Save this configuration? The current file is backed up first, and the controller must restart before it takes effect.",
+    async () => {
+      const data = await ui.api("/api/config/save", { text: document.getElementById("yaml").value });
+      if (data.ok) {
+        ui.toast("Saved to " + data.path + (data.backup ? " (backed up)" : ""));
+        const note = document.createElement("div");
+        note.className = "banner warn";
+        note.innerHTML = "Saved. Restart the controller on the <a href='/system'>System page</a> for it to take effect.";
+        document.getElementById("result").prepend(note);
+      }
+    });
+};
+
+document.getElementById("reload").onclick = load;
+load();
+</script>
+{% endblock %}

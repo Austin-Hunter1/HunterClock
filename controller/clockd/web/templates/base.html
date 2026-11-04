@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{% block page_title %}{{ title }}{% endblock %}</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Libre+Franklin:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/static/app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='44' fill='%23FBF7EE' stroke='%23C8A464' stroke-width='6'/><line x1='50' y1='50' x2='50' y2='16' stroke='%23A8672B' stroke-width='7' stroke-linecap='round'/></svg>">
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <span class="brand"><span class="dot"></span>{{ title }}</span>
+    {% if site and site != "unset" %}<span class="mono muted small">{{ site }}</span>{% endif %}
+    <form method="post" action="/logout"><button class="small ghost" type="submit">Sign out</button></form>
+  </div>
+  <nav class="tabs">
+    {% for key, href, label in nav %}
+    <a href="{{ href }}" {% if key == active %}class="active"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </nav>
+</header>
+
+<main>
+  {% if sim %}
+  <div class="sim-banner">
+    <strong>Simulation mode.</strong> There is no Pico and no motors: a fake Pico
+    runs inside this process with the same firmware code.
+    {% if open_access %} No UI password is set, so this is open to anyone who can
+    reach it. Set <code>web.password_hash</code> before the clock leaves your desk.{% endif %}
+  </div>
+  {% endif %}
+  <div id="banner" class="banner">Connecting&hellip;</div>
+  {% block content %}{% endblock %}
+</main>
+
+<script src="/static/app.js"></script>
+{% block script %}{% endblock %}
+</body>
+</html>

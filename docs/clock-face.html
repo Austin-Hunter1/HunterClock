@@ -603,7 +603,9 @@ function buildStaticDial() {
 
   /* Decade marks outside the ring: this is the scale that matters. */
   const decades = [
-    { km: 1, label: "1" },
+    // The 1 km tick lands on the 12, whose numeral already means home, so it
+    // gets a tick and no label: two numbers stacked there read as one.
+    { km: 1, label: "" },
     { km: 10, label: "10" },
     { km: 100, label: "100" },
     { km: 1000, label: "1k" },
@@ -616,6 +618,7 @@ function buildStaticDial() {
     g.appendChild(el("line", {
       x1, y1, x2, y2, stroke: "var(--accent)", "stroke-width": 2, "stroke-linecap": "round",
     }));
+    if (!decade.label) continue;
     const [tx, ty] = polar(DECADE_LABEL_R, deg);
     g.appendChild(el("text", {
       x: tx, y: ty,
