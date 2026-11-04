@@ -8,8 +8,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTROLLER = REPO_ROOT / "controller"
 PICO = REPO_ROOT / "firmware" / "pico"
+TOOLS = REPO_ROOT / "tools"
 
-for path in (CONTROLLER, PICO, REPO_ROOT):
+for path in (CONTROLLER, PICO, TOOLS, REPO_ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 

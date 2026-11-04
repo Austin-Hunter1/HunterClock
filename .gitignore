@@ -20,5 +20,6 @@ deploy/*.local
 *.log
 logs/
 firmware/esp32/data/config.json
+firmware/esp32/data/*.wcl
 firmware/esp32/.pio/
 docs/img/ui/*.tmp.png
