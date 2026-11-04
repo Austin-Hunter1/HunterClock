@@ -1,11 +1,12 @@
 # Ambigram clock hands — design plan
 
 Austin supplied six rotational ambigrams, one per family member. This is the
-plan for turning them into CAD files for the six clock hands, with the analysis
-already done and the decisions that still need Austin's answer.
+record of turning them into CAD files for the six clock hands: the analysis,
+the design decisions, and what building it actually found.
 
-**Status: planned, not built.** No CAD has been generated yet. Everything below
-that is measured is marked as measured; everything else is a proposal.
+**Status: built.** `build_hands.py` generates all six hands in both styles;
+the files are in `cad/hands/` with a printing guide. Section 7's questions are
+answered, and what the build actually found is in section 10.
 
 ---
 
@@ -207,21 +208,21 @@ forty lines of marching squares.
 
 ---
 
-## 7. Decisions needed from Austin
+## 7. Decisions — answered
 
-1. **Who are Mom and Dad?** The clock's six people are Becky, Evan, Elijah,
-   Caleb, Austin and Micah. Four ambigrams are first names; the other two are
-   `Mom` and `Dad`. The obvious reading is **Mom → Becky (level 1), Dad → Evan
-   (level 2)**, but that is an inference and getting it backwards would put the
-   wrong name on the wrong hand on a finished clock. Please confirm.
-   Also: should the hands say "Mom" and "Dad", or should new ambigrams be drawn
-   saying "Becky" and "Evan"? The clock face and the UI say Becky and Evan.
-2. **Option A or B** (§3), or print one of each and decide by eye.
-3. **Finish.** Painted relief, filament swap, or plain single-colour?
-4. **Word length as a fraction of the hand.** Proposal: the word occupies the
-   outer 75% of the tip radius, with a plain neck from the hub. A longer word
-   is more legible; a shorter one looks more like a clock hand.
-5. **Counterweight tail** — yes or no (§5).
+1. **Mom is Becky (level 1), Dad is Evan (level 2).** Confirmed by Austin. The
+   hands read "Mom" and "Dad" while the dial and the UI say Becky and Evan,
+   which is the right way round for a family clock. Two more ambigrams would
+   change it and nothing else would need touching.
+2. **Both styles are built.** `halo` is the recommendation; `plaque` is the
+   fallback if the halo prints too delicately. Print one of each at level 5.
+3. **Finish:** the relief starts at exactly 2.5 mm, so a slicer pause and a
+   filament swap gives two colours with no special hardware. Painting the
+   raised faces works too.
+4. **Word length:** 74% of the tip radius, `--word-fraction` to change it.
+5. **Counterweights: not needed.** The hands come out at 3–7 g, well inside
+   what a NEMA17 holds at any angle. The script reports centroid radius if the
+   proportions change enough to want re-checking.
 
 ---
 
@@ -252,3 +253,55 @@ The tracking system is independent of this. Hand angles, the mapping, the
 firmware and the controller all work the same whatever shape the hands are. The
 only coupling is `steps_per_rev` and the per-person `invert` flag, neither of
 which the artwork affects.
+
+
+---
+
+## 10. What the build found
+
+Three things only showed up once the geometry was real, and all three are now
+checks that fail loudly rather than notes in a document.
+
+**The halo and the scale are circularly dependent.** A bigger halo leaves less
+room for the word, which shrinks the scale, which shrinks the gaps the halo has
+to bridge. Guessing an offset left Evan's hand in two pieces. It is solved
+directly now: with `k = merge_px / width_px`, `halo = (k·span + bridge)/(1 + k)`.
+
+**Tangency is not attachment.** The smallest offset that merges the pieces
+produces contacts of zero width. `HALO_BRIDGE` adds 0.45 mm beyond that, and
+`min_bridge()` measures what is actually holding the hand together by eroding
+until the piece count goes *up* — a dumbbell eroded becomes two blobs, which a
+test for "did it vanish" would happily pass.
+
+**The tip is not on the axis.** On a word 25 mm tall the furthest point from the
+hub is a corner, not the end of the last letter. Placing the word so its *x*
+ended at the tip radius overshot by up to 1.1 mm. The builder now iterates on
+the real maximum radius; all six land within 0.05 mm.
+
+A fourth, less surprising: a neck built on the assumption that the word starts
+at `inner_r` misses a word whose leftmost point is a thin ascender off the axis
+— "Dad" is exactly that. The neck now measures where it can actually join.
+
+### Measured results
+
+| Person | Reads | Halo | Narrowest bridge | Tip | Word | Mass |
+|---|---|---|---|---|---|---|
+| Becky | Mom | 1.35 mm | 10.3 mm | 70.02 / 70 | 50×12 mm | 3.2 g |
+| Evan | Dad | 1.94 mm | >12 mm | 76.02 / 76 | 53×25 mm | 5.0 g |
+| Elijah | Elijah | 2.14 mm | >12 mm | 82.04 / 82 | 58×27 mm | 6.0 g |
+| Caleb | Caleb | 2.89 mm | >12 mm | 88.05 / 88 | 62×29 mm | 7.1 g |
+| Austin | Austin | 1.47 mm | >12 mm | 94.05 / 94 | 68×25 mm | 5.2 g |
+| Micah | Micah | 1.95 mm | 3.63 mm | 100.02 / 100 | 72×24 mm | 5.6 g |
+
+Micah's 3.63 mm is the tightest bridge in the set and is still four times the
+0.8 mm printable minimum. Caleb needed the largest halo, 2.89 mm, because his
+ambigram has the widest gaps between pieces.
+
+### Verification
+
+* Every hand is one connected body, asserted before export.
+* The Austin STL is **watertight, single-body, consistent winding**, 2 464 faces.
+* Its mesh volume is 4 193.2 mm³ against 4 199.7 mm³ computed from the 2D areas
+  — **0.16% apart**, which confirms the 2.5 mm plate, the 0.6 mm relief and the
+  cut bore are all exactly as designed.
+* The STEP is AP214 with 46 967 entities.
