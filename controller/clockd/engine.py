@@ -22,6 +22,7 @@ import time
 from typing import Any
 
 from . import geo
+from .alerts import Alerter
 from .bus import Bus, Message
 from .config import ClockConfig, Person
 from .eventlog import EventLog
@@ -75,6 +76,8 @@ class Engine:
         self._last_move_at: dict[str, float] = {}
         self._tasks: list[asyncio.Task] = []
         self._listeners: list[Any] = []
+
+        self.alerts = Alerter(config, events)
 
         self.sources: dict[str, Any] = {
             "owntracks": OwnTracksSource(config, self.on_fix, self._on_source_error),
@@ -160,6 +163,15 @@ class Engine:
                 await source.start(self.bus)
 
         await self.link.start()
+        await self.alerts.start()
+        if self.alerts.enabled and self.alerts.configured():
+            await self.alerts.ping("/start")
+            await self.alerts.notify(
+                "Weasley Clock: started",
+                "The controller is up (%s mode)." % ("sim" if self.sim else "live"),
+                priority="low",
+                tags="clock",
+            )
 
         self._tasks = [
             asyncio.create_task(self._publish_loop(), name="publish"),
@@ -178,6 +190,16 @@ class Engine:
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await task
         self._tasks = []
+        if self.alerts.enabled and self.alerts.configured():
+            with contextlib.suppress(Exception):
+                await self.alerts.notify(
+                    "Weasley Clock: stopping",
+                    "The controller is shutting down.",
+                    priority="low",
+                    tags="octagonal_sign",
+                )
+        with contextlib.suppress(Exception):
+            await self.alerts.stop()
         hass = self.sources.get("hass")
         if hass is not None:
             with contextlib.suppress(Exception):
@@ -744,11 +766,76 @@ class Engine:
                     self.topic("system", "heartbeat"),
                     {"at": time.time(), "uptime_s": round(time.time() - self.started_at, 1)},
                 )
+                await self.check_alerts()
             except asyncio.CancelledError:
                 raise
             except Exception:
                 log.exception("publish loop failed")
             await asyncio.sleep(PUBLISH_INTERVAL_S)
+
+    async def check_alerts(self) -> None:
+        """Evaluate the alert conditions and notify about anything new.
+
+        Called on the publish timer. Each condition is reported every time it
+        is evaluated, true or false; :class:`clockd.alerts.Alerter` handles the
+        debouncing and the cooldown, and sends a "recovered" message when a
+        condition clears.
+        """
+        if not self.alerts.enabled or not self.alerts.configured():
+            return
+
+        await self.alerts.condition(
+            "pico-down",
+            not self.link.connected,
+            "Weasley Clock: the Pico is not responding",
+            "The controller cannot talk to the Pico over USB, so no hand will "
+            "move. Last error: %s" % (self.link.last_error or "unknown"),
+            tags="electric_plug",
+        )
+
+        fault = self.link.last_fault
+        await self.alerts.condition(
+            "pico-fault",
+            bool(fault),
+            "Weasley Clock: the firmware reported a fault",
+            "{}: {}".format(
+                (fault or {}).get("code", "?"),
+                (fault or {}).get("msg", ""),
+            ),
+            tags="warning",
+        )
+
+        unverified = [s.name for s in self.people.values() if s.enabled and not s.verified]
+        await self.alerts.condition(
+            "hands-unverified",
+            len(unverified) == len([s for s in self.people.values() if s.enabled]),
+            "Weasley Clock: every hand needs re-zeroing",
+            "No hand has a confirmed position, so none of them will move. "
+            "Someone at the clock needs to open /assist. ({})".format(", ".join(unverified)),
+            priority="default",
+            tags="wrench",
+        )
+
+        stale = [
+            s.name
+            for s in self.people.values()
+            if s.enabled and s.is_stale(self.config.filtering.stale_after_s)
+        ]
+        await self.alerts.condition(
+            "all-stale",
+            bool(self.people) and len(stale) == len([s for s in self.people.values() if s.enabled]),
+            "Weasley Clock: no locations are arriving",
+            "Every person has gone stale, which usually means MQTT or the "
+            "broker rather than six phones at once.",
+            tags="satellite",
+        )
+
+        if (
+            self.link.connected
+            and not self.link.last_fault
+            and not all(not s.verified for s in self.people.values())
+        ):
+            await self.alerts.ping()
 
     async def _poll_loop(self) -> None:
         """Copy positions from the link into the person states.
@@ -814,6 +901,7 @@ class Engine:
             "motion": self.config.motion.model_dump(),
             "filtering": self.config.filtering.model_dump(),
             "store": {"path": str(self.store.path), "error": self.store.load_error},
+            "alerts": self.alerts.describe(),
             "events_last_id": self.events.last_id(),
         }
 

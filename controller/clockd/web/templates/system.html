@@ -34,6 +34,17 @@ sanitised config, which is everything needed to work out what went wrong from so
     </div>
 
     <div class="card">
+      <h2>Alerts</h2>
+      <dl class="kv" id="alerts-kv"></dl>
+      <p class="small muted" style="margin:8px 0 0">
+        healthchecks.io is the dead-man's switch: if the pings stop, it emails you,
+        which is the only thing that catches a Pi that has lost power or hung.
+        ntfy tells you what broke while the Pi is still alive to say so.
+        Both are set by environment variable in <code>.env</code>, never in the config file.
+      </p>
+    </div>
+
+    <div class="card">
       <h2>Software</h2>
       <dl class="kv" id="git-kv"></dl>
       <div class="row" style="margin-top:10px">
@@ -94,6 +105,19 @@ async function refresh() {
 
   const state = ui.latest;
   if (state) {
+    const alerts = state.alerts || {};
+    fill("alerts-kv", [
+      ["Enabled", alerts.enabled ? "yes" : "no"],
+      ["healthchecks.io", alerts.healthchecks ? "configured" : "not set"],
+      ["ntfy", alerts.ntfy ? "configured" : "not set"],
+      ["Health pings sent", alerts.pings_sent],
+      ["Notifications sent", alerts.notifications_sent],
+      ["Delivery failures", alerts.failures],
+      ["Last ping", alerts.last_ping_at ? ui.formatTime(alerts.last_ping_at) : null],
+      ["Active problems", (alerts.active_conditions || []).join(", ") || "none"],
+      ["Last error", alerts.last_error],
+    ]);
+
     const pico = state.pico || {};
     fill("pico-kv", [
       ["Link", pico.connected ? "connected" : "NOT CONNECTED"],
