@@ -144,7 +144,8 @@ def main(argv: list[str] | None = None) -> int:
     scale = args.scale
     if args.model.suffix.lower() == ".3mf":
         unit = read_3mf_unit(args.model)
-        print(f"Unit  : {unit or 'not declared'}" + (f" (x{UNIT_TO_MM.get(unit, 1.0)})" if unit else ""))
+        factor = f" (x{UNIT_TO_MM.get(unit, 1.0)})" if unit else ""
+        print(f"Unit  : {unit or 'not declared'}{factor}")
         if scale is None and unit in UNIT_TO_MM:
             scale = UNIT_TO_MM[unit]
     scale = scale or 1.0
@@ -210,7 +211,8 @@ def main(argv: list[str] | None = None) -> int:
               f"print it in segments or have it cut")
 
     print()
-    print(f"{DIM}Hand tip radii: " + ", ".join(f"{h.person} {h.tip_r}" for h in HANDS) + f" mm{OFF}")
+    tips = ", ".join(f"{h.person} {h.tip_r}" for h in HANDS)
+    print(f"{DIM}Hand tip radii: {tips} mm{OFF}")
     return 0
 
 
