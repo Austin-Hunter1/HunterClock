@@ -17,6 +17,7 @@ It only reads the file. Nothing is modified and nothing is written.
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 import zipfile
 from pathlib import Path
@@ -100,28 +101,76 @@ def load_mesh(path: Path):
     return scene
 
 
-def ring_profile(mesh, *, bins: int = 400):
-    """Radii present in the model, as seen looking down the axis.
+def flat_regions(mesh, *, z: float, upward: bool, tol: float = 0.01):
+    """The 2D shape of the material at one horizontal face of the model.
 
-    Returns ``(radii_sorted, outer_r, inner_r)`` where ``inner_r`` is the radius
-    of the central opening, or 0.0 when the model is solid at the centre.
+    Collects the triangles lying in the plane ``z`` whose normal points the
+    given way and unions them, which gives the real outline and the real holes
+    -- unlike anything derived from a bounding box or a vertex centroid, which
+    is meaningless on a part that is not centred on its own bounds.
     """
     import numpy as np
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
 
-    xy = mesh.vertices[:, :2]
-    centre = xy.mean(axis=0)
-    radii = np.hypot(xy[:, 0] - centre[0], xy[:, 1] - centre[1])
-    outer = float(radii.max())
+    vertices, faces, normals = mesh.vertices, mesh.faces, mesh.face_normals
+    centres = vertices[faces].mean(axis=1)[:, 2]
+    chosen = np.abs(centres - z) < tol
+    chosen &= (normals[:, 2] > 0.9) if upward else (normals[:, 2] < -0.9)
+    triangles = [Polygon(vertices[tri][:, :2]) for tri in faces[chosen]]
+    triangles = [t for t in triangles if t.is_valid and t.area > 1e-9]
+    if not triangles:
+        return None
+    merged = unary_union(triangles)
+    return max(getattr(merged, "geoms", [merged]), key=lambda g: g.area)
 
-    # A central hole shows up as a radius band with vertices but no material
-    # inside it. Sample the mesh's 2D occupancy cheaply by ray casting down.
-    inner = 0.0
-    hist, edges = np.histogram(radii, bins=bins, range=(0.0, outer))
-    for count, lo in zip(hist, edges[:-1], strict=False):
-        if count > 0:
-            inner = float(lo)
-            break
-    return radii, outer, inner, centre
+
+def circle_of(ring):
+    """Centre, diameter and circularity of a ring, for identifying bores."""
+    import numpy as np
+    from shapely.geometry import Polygon
+
+    polygon = Polygon(ring)
+    centre = polygon.centroid
+    points = np.asarray(ring.coords)[:, :2]
+    radii = np.hypot(points[:, 0] - centre.x, points[:, 1] - centre.y)
+    circularity = 4 * np.pi * polygon.area / max(polygon.length ** 2, 1e-9)
+    return (float(centre.x), float(centre.y)), float(2 * radii.mean()), float(circularity)
+
+
+def find_dial(mesh):
+    """Locate the dial: its centre, its radius, and the holes through it.
+
+    Looks for the largest circular flat region (a chapter ring is usually a
+    raised or recessed disc). Falls back to the plate outline when the face is
+    a plain sheet with nothing but holes in it.
+    """
+
+    z_levels = sorted({round(float(z), 3) for z in mesh.vertices[:, 2]})
+    bottom = flat_regions(mesh, z=z_levels[0], upward=False)
+
+    best = None
+    for z in z_levels[1:]:
+        region = flat_regions(mesh, z=z, upward=True)
+        if region is None:
+            continue
+        _c, diameter, circularity = circle_of(region.exterior)
+        if circularity > 0.95 and (best is None or diameter > best[1]):
+            centre = region.centroid
+            best = ((float(centre.x), float(centre.y)), diameter, z)
+
+    holes = []
+    if bottom is not None:
+        for ring in bottom.interiors:
+            centre, diameter, circularity = circle_of(ring)
+            holes.append({"centre": centre, "d": diameter, "round": circularity > 0.95})
+
+    if best is None and holes:
+        # No disc: take the plate's own centre of area as the dial centre.
+        centre = bottom.centroid
+        best = ((float(centre.x), float(centre.y)), 0.0, z_levels[-1])
+
+    return bottom, best, holes, z_levels
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -162,44 +211,73 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Mesh  : {len(mesh.faces)} faces, watertight={mesh.is_watertight}")
     print(f"Size  : {size[0]:.1f} x {size[1]:.1f} x {size[2]:.1f} mm")
 
-    radii, outer, inner, centre = ring_profile(mesh)
+    bottom, disc, holes, z_levels = find_dial(mesh)
     thickness = float(size[2])
-    roundness = abs(size[0] - size[1]) / max(size[0], size[1])
-    shape = "round" if roundness < 0.03 else f"not round ({roundness * 100:.0f}% off square)"
-    print(f"Shape : {shape}, outer radius {outer:.1f} mm, thickness {thickness:.1f} mm")
-    print(f"Centre: opening radius {inner:.1f} mm ({inner * 2:.1f} mm across)")
+    print(f"Levels: {', '.join(f'{z:.3f}' for z in z_levels)} mm "
+          f"({len(z_levels) - 1} step{'s' if len(z_levels) > 2 else ''})")
+
+    if disc is None:
+        print(f"{RED}Could not find a dial in this model.{OFF}")
+        return 2
+    (cx, cy), disc_d, _disc_z = disc
+    disc_r = disc_d / 2.0
+    if disc_r:
+        print(f"Dial  : disc radius {disc_r:.1f} mm, centred at ({cx:.1f}, {cy:.1f})")
+    else:
+        print(f"Dial  : no raised disc; using plate centre ({cx:.1f}, {cy:.1f})")
+
+    print(f"Holes : {len(holes)} through the plate")
+    centre_hole = None
+    for hole in sorted(holes, key=lambda h: math.hypot(h["centre"][0] - cx, h["centre"][1] - cy)):
+        hx, hy = hole["centre"]
+        offset = math.hypot(hx - cx, hy - cy)
+        kind = "round" if hole["round"] else "shaped (decorative?)"
+        label = ""
+        if hole["round"] and offset < 1.0 and centre_hole is None:
+            centre_hole = hole
+            label = "  <- dial centre"
+        print(f"        d={hole['d']:7.2f} mm at ({hx:7.1f},{hy:7.1f}), "
+              f"{offset:6.1f} mm from centre, {kind}{label}")
     print()
 
     # --- cross-check against the hands ------------------------------------
     longest = max(h.tip_r for h in HANDS)
-    biggest_hub = max(max(h.bore + 5.2, 9.0) for h in HANDS)
+    shaft_od = 12.0  # motor 1's hollow shaft: the widest thing through the dial
     stack_depth = (len(HANDS) - 1) * HAND_DZ + HAND_T
-
     print("Against the six hands:")
-    checks = []
 
-    checks.append((
-        outer >= longest + 3,
-        f"longest hand is {longest:.0f} mm; dial radius {outer:.1f} mm",
-        f"dial radius {outer:.1f} mm is smaller than the {longest:.0f} mm hand — "
-        f"shorten the hands with --word-fraction, or lengthen the dial",
-    ))
-    checks.append((
-        inner == 0.0 or inner * 2 >= biggest_hub + 1,
-        f"centre opening {inner * 2:.1f} mm clears the {biggest_hub:.1f} mm hub stack"
-        if inner else "no central opening detected (solid face)",
-        f"centre opening {inner * 2:.1f} mm is tighter than the {biggest_hub:.1f} mm "
-        f"largest hub — the level 1 hand will not pass through",
-    ))
-    checks.append((
-        True,
-        f"hand stack needs {stack_depth:.1f} mm of depth in front of the dial "
-        f"(6 hands at {HAND_DZ} mm spacing)",
-        "",
-    ))
+    if disc_r:
+        if outer_ok := disc_r >= longest + 3:
+            print(f"  {GREEN}OK{OFF}   longest hand {longest:.0f} mm fits the "
+                  f"{disc_r:.0f} mm dial, {disc_r - longest:.0f} mm to spare")
+        else:
+            print(f"  {RED}no{OFF}   longest hand {longest:.0f} mm against a "
+                  f"{disc_r:.0f} mm dial")
+        if outer_ok and disc_r - longest > 15:
+            print(f"  {YELLOW}!{OFF}    but {disc_r - longest:.0f} mm of dial is left bare; "
+                  f"hands could run to about {disc_r - 8:.0f} mm")
 
-    for ok, good, bad in checks:
-        print(f"  {GREEN}OK{OFF}   {good}" if ok else f"  {RED}no{OFF}   {bad}")
+    if centre_hole is None:
+        print(f"  {YELLOW}!{OFF}    no round hole at the dial centre -- "
+              f"the arbor hole may still need drilling")
+    elif centre_hole["d"] >= shaft_od + 0.5:
+        print(f"  {GREEN}OK{OFF}   centre hole {centre_hole['d']:.2f} mm clears the "
+              f"{shaft_od:.0f} mm shaft")
+    else:
+        print(f"  {RED}no{OFF}   centre hole is {centre_hole['d']:.2f} mm; the "
+              f"{shaft_od:.0f} mm motor shaft will not pass. "
+              f"Open it to at least {shaft_od + 0.7:.1f} mm")
+
+    swept = [h for h in holes if h["round"] and h is not centre_hole
+             and math.hypot(h["centre"][0] - cx, h["centre"][1] - cy) < longest]
+    if swept:
+        where = ", ".join(f"{h['d']:.1f} mm" for h in swept)
+        print(f"  {YELLOW}!{OFF}    {len(swept)} other hole(s) ({where}) lie under the "
+              f"hand sweep and will be visible")
+
+    print(f"  {DIM}hand stack needs {stack_depth:.1f} mm of depth in front of the "
+          f"{thickness:.2f} mm plate{OFF}")
+    print()
 
     fits = [name for name, w, d in BEDS if max(size[0], size[1]) <= max(w, d)
             and min(size[0], size[1]) <= min(w, d)]
