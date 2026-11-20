@@ -249,3 +249,20 @@ hardware was connected in the session that wrote it. Specifically:
   building an alpha channel and then dropping it, since JPEG has no alpha, so
   the corners were never masked at all.
 * **Push 8** — alerting, with debounce and cooldown; final screenshots.
+* **Push 9** — the ambigram hands, the clock-face verification, the cabinet
+  depth conflict and option D, and the print plates.
+* **Push 10** — carved display bezels. `build_bezels.py` grew five styles, of
+  which `ornate` is now the default: a Louis XV gilt-frame moulding with a
+  24-lobe scalloped outline, flutes across the round, and a plain cabochon at
+  each quarter. Two things were learned the hard way. Revolving on an XZ
+  workplane takes the axis in the *local* frame, so `(0,0,1)` spins about
+  global Y and every style came out lying on its side — the reload-and-check
+  step caught it. And ornament that is *fused on* does not export: each OCC
+  sphere left one cracked edge where its seam met the fuse boundary, 56 of
+  them, with the in-memory solid reporting perfectly healthy throughout. The
+  ornament is carved instead, which meshes cleanly and is how the real thing
+  is made. The `beaded` style was removed rather than kept broken.
+
+  **Untested on hardware.** No bezel has been printed and no display module
+  has been test-fitted; the dimensions still come from a product listing, not
+  a part in hand.
