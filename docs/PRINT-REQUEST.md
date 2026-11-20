@@ -39,35 +39,17 @@ the plate" rescale would ruin them.
 
 ## Description (paste this in)
 
-> Two print plates for a Weasley-clock build — a grandfather clock whose six
-> hands point to where each family member is. Each plate holds three clock
-> hands and three circular display bezels; the two plates together are the
-> complete set of 12 parts.
+> Two plates for a clock build: 12 parts in all — six clock hands and six
+> round display bezels.
 >
-> Print at 100% — the files are in millimetres and must not be rescaled, as
-> every part has to fit existing hardware. Plate 1 measures 172.5 × 162.2 mm
-> and plate 2 measures 176.8 mm deep; both fit a 250 × 210 bed with room for a
-> skirt. Maximum part height is 7.5 mm.
+> Print at 100%. The files are in millimetres and must not be rescaled; as a
+> check, plate 1 should measure 172.5 mm across. Both plates are laid flat and
+> need no supports anywhere. 0.2 mm layers, black PLA, standard infill. The
+> parts get painted afterwards, so surface finish does not matter.
 >
-> Both plates are already oriented and laid flat, so please print as-is.
-> Nothing overhangs, so no supports are needed anywhere. 0.2 mm layers in
-> black PLA are ideal. Roughly 70 cm³ of material across both plates if solid,
-> considerably less at a normal infill — standard infill and perimeters are
-> fine, these are decorative parts carrying almost no load.
->
-> Two features do matter dimensionally, and both are holes rather than
-> outside surfaces, so a little elephant's foot on the first layer is harmless:
->
-> 1. The round bezels have a 39.9 mm recess on their underside that a 39.5 mm
->    circuit board drops into. It needs to stay round and not close up.
-> 2. Each hand has a round bore at its wide end, between 3.97 mm and 7.94 mm
->    depending on the part, which slides onto a brass tube. These also need to
->    stay round and not undersize.
->
-> If your process typically runs holes a few tenths undersize, that is fine —
-> they will be reamed by hand — but please let me know so I can plan for it.
-> The parts will be primed and painted after printing, so surface finish and
-> visible layer lines are not a concern.
+> Two holes need to stay round and not undersize: a 39.9 mm recess on the back
+> of each bezel, and a 3.97–7.94 mm bore in each hand. If your process runs
+> holes a few tenths small that is fine, just let me know.
 
 ## Untested on hardware
 
