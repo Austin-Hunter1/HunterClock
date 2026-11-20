@@ -122,6 +122,30 @@ class HandSpec:
         return (self.level - 1) * HAND_DZ
 
 
+#: Option D (off-axis motors, belts to the tubes) changes two things that the
+#: hands depend on, both settled by measurement rather than guesswork:
+#:
+#: * **Tube sizes.** With no motor bores for the tubes to thread through, the
+#:   cascade that forced level 6 down to 1.59 mm disappears. Six consecutive
+#:   K&S sizes nest cleanly with a 0.36 mm wall, and the outermost still passes
+#:   the dial's centre hole once that is opened to 12.7 mm.
+#: * **Tip radii.** Caleb's dial is a 9.75 in disc, 123.8 mm radius. The old
+#:   70-100 mm radii were sized against build_cad.py's placeholder 110 mm dial
+#:   and leave 24 mm of bare dial; 85-115 mm fills it with 9 mm to spare.
+#:
+#: Bores are cut at the nominal tube OD with no added clearance. A printed hole
+#: comes out slightly undersize anyway, so this gives a light ream to fit --
+#: and reaming a hole out is easy where shrinking one is not.
+OPTION_D = {
+    # person: (tube OD mm, tip radius mm)
+    "Becky": (7.94, 85),
+    "Evan": (7.14, 91),
+    "Elijah": (6.35, 97),
+    "Caleb": (5.56, 103),
+    "Austin": (4.76, 109),
+    "Micah": (3.97, 115),
+}
+
 # Mounting comes from build_cad.py: level 1 grips motor 1's 12 mm hollow shaft,
 # levels 2-6 grip their telescoping brass tube.  Tip radii are HAND_LEN.
 # Mom and Dad are Becky and Evan -- confirmed by Austin.
@@ -749,7 +773,15 @@ def _cq_solid(geometry: MultiPolygon, thickness: float, z: float, *, tol: float 
     """
     import cadquery as cq
 
-    simplified = _as_multipolygon(geometry.simplify(tol, preserve_topology=True))
+    # A morphological close before extruding. The artwork has places where two
+    # letter pieces touch at exactly one point; extruded, a point contact
+    # becomes an edge shared by four faces, and the solid is no longer
+    # manifold. Rounding the pinch by 5 microns removes it and changes nothing
+    # a printer could resolve.
+    closed = geometry.buffer(0.005, quad_segs=4).buffer(-0.005, quad_segs=4)
+    if closed.is_empty:
+        closed = geometry
+    simplified = _as_multipolygon(closed.simplify(tol, preserve_topology=True))
     solid = None
     for polygon in simplified.geoms:
         if polygon.is_empty or polygon.area < 0.01:
@@ -773,11 +805,17 @@ def _cq_solid(geometry: MultiPolygon, thickness: float, z: float, *, tol: float 
 
 
 def to_solid(hand: Hand):
-    """Build the hand as a single CadQuery solid: plate plus raised name."""
+    """Build the hand as a single CadQuery solid: plate plus raised name.
+
+    The relief is extruded from the bed, not from the top of the blade, so the
+    two solids genuinely overlap instead of meeting face to face. A coplanar
+    face-on-face union leaves duplicate surfaces that some exporters never
+    merge; an overlapping one fuses cleanly. The finished shape is identical.
+    """
     blade = _cq_solid(hand.blade, HAND_T, 0.0)
     if blade is None:
         raise RuntimeError(f"{hand.spec.person}: blade produced no solid")
-    relief = _cq_solid(hand.word, RELIEF_H, HAND_T)
+    relief = _cq_solid(hand.word, HAND_T + RELIEF_H, 0.0)
     return blade if relief is None else blade.union(relief)
 
 
@@ -802,6 +840,157 @@ def write_3d(hand: Hand, out_dir: Path) -> list[Path]:
     except Exception as exc:  # pragma: no cover - depends on the OCC build
         raise RuntimeError(f"{hand.spec.person}: 3D export failed: {exc}") from exc
     return written
+
+
+def write_plates(hands: list[Hand], out_dir: Path, *, bed=(256.0, 256.0), gap: float = 6.0,
+                 tag: str = "") -> list[Path]:
+    """Write every hand onto as few print plates as the bed allows.
+
+    Tries all six on one plate, then two plates, then three. Splitting beats
+    clever packing here: two plates of three on a 220 mm bed is a normal way to
+    print, and a bin packer that wedges six awkward wedges onto one bed would
+    be a lot of code for one fewer print job.
+    """
+    for batches in (1, 2, 3, 6):
+        size = -(-len(hands) // batches)
+        groups = [hands[i:i + size] for i in range(0, len(hands), size)]
+        try:
+            written = []
+            for index, group in enumerate(groups, start=1):
+                suffix = "" if len(groups) == 1 else f"-{index}of{len(groups)}"
+                written += _write_one_plate(group, out_dir, bed=bed, gap=gap, tag=tag + suffix)
+            return written
+        except RuntimeError as exc:
+            if batches == 6:
+                raise RuntimeError(
+                    f"even one hand will not fit a {bed[0]:.0f} x {bed[1]:.0f} mm bed: {exc}"
+                ) from exc
+            continue
+    return []
+
+
+def _write_one_plate(hands: list[Hand], out_dir: Path, *, bed=(256.0, 256.0), gap: float = 6.0,
+                     tag: str = "") -> list[Path]:
+    """Arrange every hand on one bed and write it as a single printable file.
+
+    One row per hand, longest at the bottom, so the plate is as narrow as it can
+    be. The hands stay separate solids inside one file, which is what a slicer
+    wants: it can colour, arrange or remove them individually, and there is
+    nothing to split.
+
+    Raises:
+        RuntimeError: if the arrangement overlaps or runs off the bed, rather
+            than writing a plate that cannot be sliced.
+    """
+    import cadquery as cq
+
+    ordered = sorted(hands, key=lambda h: h.blade.bounds[2] - h.blade.bounds[0], reverse=True)
+
+    # Pack into as few columns as the bed needs: one is tidiest, but a 220 mm
+    # bed cannot take six rows of a 115 mm hand.
+    placed = chosen_turn = None
+    # Rotating a flat part in the bed plane costs nothing -- same layers, same
+    # strength -- so try it. A 119 mm hand needs two 125 mm columns laid
+    # lengthways, which overflows a 220 mm bed; stood on end, three fit across.
+    for turn, columns in [(t, c) for c in (1, 2, 3) for t in (0.0, 90.0)]:
+        attempt, column_y = [], [0.0] * columns
+        for index, hand in enumerate(ordered):
+            col = index % columns
+            shape = affinity.rotate(hand.blade, turn, origin=(0, 0))
+            minx, miny, maxx, maxy = shape.bounds
+            offset_x = -minx + gap
+            offset_y = column_y[col] - miny + gap
+            attempt.append((hand, turn, offset_x, offset_y,
+                            affinity.translate(shape, xoff=offset_x, yoff=offset_y)))
+            column_y[col] += (maxy - miny) + gap
+        # Columns are laid left to right, each as wide as its widest member.
+        widths = [0.0] * columns
+        for index, (_h, _t, _ox, _oy, fp) in enumerate(attempt):
+            widths[index % columns] = max(widths[index % columns], fp.bounds[2])
+        shift, running = [0.0] * columns, 0.0
+        for col in range(columns):
+            shift[col] = running
+            running += widths[col] + gap
+        attempt = [
+            (h, tn, ox + shift[i % columns], oy,
+             affinity.translate(fp, xoff=shift[i % columns], yoff=0.0))
+            for i, (h, tn, ox, oy, fp) in enumerate(attempt)
+        ]
+        used_x = max(fp.bounds[2] for _h, _t, _ox, _oy, fp in attempt) + gap
+        used_y = max(fp.bounds[3] for _h, _t, _ox, _oy, fp in attempt) + gap
+        if used_x <= bed[0] and used_y <= bed[1]:
+            placed, chosen_turn = attempt, turn
+            break
+    if placed is None:
+        raise RuntimeError(
+            f"{len(hands)} hand(s) will not fit a {bed[0]:.0f} x {bed[1]:.0f} mm bed"
+        )
+
+    for i, (hand, _t, _ox, _oy, footprint) in enumerate(placed):
+        for other_hand, _t2, _x, _y, other in placed[i + 1:]:
+            if footprint.intersects(other) and footprint.intersection(other).area > 1e-6:
+                raise RuntimeError(
+                    f"{hand.spec.person} overlaps {other_hand.spec.person} on the plate"
+                )
+
+    solids = [
+        to_solid(h).rotate((0, 0, 0), (0, 0, 1), tn).translate((ox, oy, 0))
+        for h, tn, ox, oy, _fp in placed
+    ]
+    used_x = max(fp.bounds[2] for _h, _t, _ox, _oy, fp in placed) + gap
+    used_y = max(fp.bounds[3] for _h, _t, _ox, _oy, fp in placed) + gap
+    if chosen_turn:
+        print(f"  (hands turned {chosen_turn:.0f} degrees to fit the bed)")
+
+    compound = cq.Compound.makeCompound([s.val() for s in solids])
+    stem = f"print-plate{'-' + tag if tag else ''}-{ordered[0].style}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    written = []
+    for suffix, kwargs in ((".3mf", {}), (".stl", {"tolerance": 0.01, "angularTolerance": 0.1}),
+                           (".step", {})):
+        path = out_dir / (stem + suffix)
+        cq.exporters.export(compound, str(path), **kwargs)
+        written.append(path)
+
+    verify_printable(out_dir / (stem + ".stl"), expect_parts=len(solids), bed=bed)
+    print(f"  plate is {used_x:.0f} x {used_y:.0f} mm on a {bed[0]:.0f} x {bed[1]:.0f} mm bed, "
+          f"{len(solids)} parts, every part watertight")
+    return written
+
+
+def verify_printable(path: Path, *, expect_parts: int, bed) -> None:
+    """Load a written mesh back and refuse it if a slicer would struggle.
+
+    Worth doing on the file rather than on the model in memory: the defect this
+    was written for -- two letter pieces touching at a point, which extrudes
+    into an edge shared by four faces -- existed only in the exported mesh, and
+    every in-memory check passed happily while it was there.
+
+    Raises:
+        RuntimeError: if the mesh is not a set of watertight solids sitting on
+            the bed and inside it.
+    """
+    import trimesh
+
+    mesh = trimesh.load(str(path))
+    problems = []
+    parts = mesh.split(only_watertight=False)
+    if len(parts) != expect_parts:
+        problems.append(f"{len(parts)} separate bodies, expected {expect_parts}")
+    for index, part in enumerate(parts, start=1):
+        if not part.is_watertight:
+            problems.append(f"part {index} is not watertight")
+        if not part.is_winding_consistent:
+            problems.append(f"part {index} has inconsistent winding")
+    low, high = mesh.bounds
+    if abs(low[2]) > 1e-6:
+        problems.append(f"does not sit on the bed (z starts at {low[2]:.3f})")
+    if high[0] - low[0] > bed[0] or high[1] - low[1] > bed[1]:
+        problems.append(
+            f"footprint {high[0] - low[0]:.0f} x {high[1] - low[1]:.0f} mm exceeds the bed"
+        )
+    if problems:
+        raise RuntimeError(f"{path.name} would not print cleanly: " + "; ".join(problems))
 
 
 # --- command line ------------------------------------------------------------
@@ -838,6 +1027,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--halo", type=float, default=None, help="override the halo, mm")
     parser.add_argument("--word-fraction", type=float, default=0.74)
     parser.add_argument("--no-grub-screw", action="store_true")
+    parser.add_argument(
+        "--preset",
+        choices=("as-drawn", "option-d"),
+        default="as-drawn",
+        help="option-d retargets the hands at the measured dial and the belt-driven tube stack",
+    )
+    parser.add_argument(
+        "--plate",
+        action="store_true",
+        help="also arrange every hand on one print bed and write a single file",
+    )
+    parser.add_argument("--bed", type=float, nargs=2, default=(256.0, 256.0), metavar=("X", "Y"))
     args = parser.parse_args(argv)
 
     specs = HANDS
@@ -847,6 +1048,15 @@ def main(argv: list[str] | None = None) -> int:
         if not specs:
             print(f"no hand called {args.only!r}", file=sys.stderr)
             return 2
+
+    if args.preset == "option-d":
+        for spec in specs:
+            tube_od, tip_r = OPTION_D[spec.person]
+            spec.mount_od = tube_od
+            spec.tip_r = tip_r
+            spec.notes.append("option-d: bore is the nominal tube OD, ream to fit")
+        global BORE_CLEARANCE  # noqa: PLW0603 - a deliberate, documented switch
+        BORE_CLEARANCE = 0.0
 
     styles = ("halo", "plaque") if args.style == "both" else (args.style,)
     args.out.mkdir(parents=True, exist_ok=True)
@@ -884,6 +1094,14 @@ def main(argv: list[str] | None = None) -> int:
         if len(built) > 1:
             sheet = write_sheet(built, args.out / f"all-hands-{style}.svg")
             print(f"  sheet: {sheet.name}")
+        if args.plate and built and not args.svg_only:
+            try:
+                written = write_plates(built, args.out, bed=tuple(args.bed), tag=args.preset)
+                for path in written:
+                    print(f"  plate: {path.name}")
+            except RuntimeError as exc:
+                print(f"  plate FAILED: {exc}", file=sys.stderr)
+                failures += 1
 
     print(f"\nFiles in {args.out}")
     if failures:
