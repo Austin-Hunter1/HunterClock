@@ -6,16 +6,23 @@ with belts) and sized to the measured dial.
 
 ## Print this one file
 
-| File | For |
-|---|---|
-| **`print-plate-option-d-halo.3mf`** | all six on one bed, 256 × 256 mm or bigger |
-| `print-plate-option-d-halo.stl` | same, if your slicer prefers STL |
-| `print-plate-option-d-1of2-halo.3mf` + `2of2` | two plates, for a 220 × 220 mm bed |
-| `print-plate-option-d-plaque.stl` | the plaque style instead, all six |
+Pick by the printer's bed, because the single plate is 226 mm deep and a lot of
+common beds are not:
 
-The plate is **119 × 226 mm, 3.1 mm tall, 43 g of PLA**, six separate solids in
-one file. Your slicer will show six parts it can colour or move individually;
-there is nothing to split.
+| File | Plate size | Printers it fits |
+|---|---|---|
+| **`print-plate-option-d-halo.3mf`** | 119 × 226 mm, all six | Bambu A1 / P1S / X1 (256), Prusa XL (360), Ender 5 Plus |
+| `print-plate-option-d-1of2-halo.3mf` + `2of2` | 115 × 115 and 131 × 129 mm, three each | **Prusa MK4 (250 × 208)**, Ender 3 (220), anything smaller |
+| `print-plate-option-d-halo.stl` / `-plaque.stl` | — | same geometry if your slicer prefers STL, or the plaque style |
+
+**A 226 mm plate does not fit a Prusa MK4** — its bed is 249 × 208 mm. Use the
+two-plate pair there. Six will technically squeeze onto an MK4 at 249 × 123 mm
+with a 4 mm part gap (`--gap 4`), but that leaves half a millimetre at the
+edges and no room for a skirt, so it is not worth the risk.
+
+The full plate is **3.1 mm tall and 43 g of PLA**, six separate solids in one
+file. Your slicer will show six parts it can colour or move individually; there
+is nothing to split.
 
 Every part has been checked after export: watertight, consistent winding,
 sitting flat on the bed, no part overlapping another.

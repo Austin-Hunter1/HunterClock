@@ -1039,6 +1039,9 @@ def main(argv: list[str] | None = None) -> int:
         help="also arrange every hand on one print bed and write a single file",
     )
     parser.add_argument("--bed", type=float, nargs=2, default=(256.0, 256.0), metavar=("X", "Y"))
+    parser.add_argument(
+        "--gap", type=float, default=6.0, help="clearance between parts on the plate, mm"
+    )
     args = parser.parse_args(argv)
 
     specs = HANDS
@@ -1096,7 +1099,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  sheet: {sheet.name}")
         if args.plate and built and not args.svg_only:
             try:
-                written = write_plates(built, args.out, bed=tuple(args.bed), tag=args.preset)
+                written = write_plates(
+                    built, args.out, bed=tuple(args.bed), gap=args.gap, tag=args.preset
+                )
                 for path in written:
                     print(f"  plate: {path.name}")
             except RuntimeError as exc:
