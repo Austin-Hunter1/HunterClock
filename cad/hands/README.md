@@ -7,25 +7,48 @@ with belts) and sized to the measured dial.
 ## Print this one file
 
 Pick by the printer's bed, because the single plate is 226 mm deep and a lot of
-common beds are not:
+common beds are not.
 
-| File | Plate size | Printers it fits |
+### Prusa MK4 (bed 250 × 210) — two plates
+
+| File | Size | Contains |
 |---|---|---|
-| **`print-plate-option-d-halo.3mf`** | 119 × 226 mm, all six | Bambu A1 / P1S / X1 (256), Prusa XL (360), Ender 5 Plus |
-| `print-plate-option-d-1of2-halo.3mf` + `2of2` | 115 × 115 and 131 × 129 mm, three each | **Prusa MK4 (250 × 208)**, Ender 3 (220), anything smaller |
-| `print-plate-option-d-halo.stl` / `-plaque.stl` | — | same geometry if your slicer prefers STL, or the plaque style |
+| `print-plate-mk4-1of2-halo.stl` | 103 × 103 mm, 19 g | Becky, Elijah, Evan |
+| `print-plate-mk4-2of2-halo.stl` | 119 × 117 mm, 24 g | Austin, Caleb, Micah |
 
-**A 226 mm plate does not fit a Prusa MK4** — its bed is 249 × 208 mm. Use the
-two-plate pair there. Six will technically squeeze onto an MK4 at 249 × 123 mm
-with a 4 mm part gap (`--gap 4`), but that leaves half a millimetre at the
-edges and no room for a skirt, so it is not worth the risk.
+Also as `.3mf`, and in `-plaque` if you want that style. Both plates together
+are the complete set of six.
 
-The full plate is **3.1 mm tall and 43 g of PLA**, six separate solids in one
-file. Your slicer will show six parts it can colour or move individually; there
-is nothing to split.
+### Bambu A1 / P1S / X1, Prusa XL (bed 256 or bigger) — one plate
 
-Every part has been checked after export: watertight, consistent winding,
-sitting flat on the bed, no part overlapping another.
+| File | Size | Contains |
+|---|---|---|
+| `print-plate-option-d-halo.3mf` | 119 × 226 mm, 43 g | all six |
+
+Also `.stl`, and `-plaque.stl`.
+
+**A 226 mm plate does not fit an MK4.** Six will technically squeeze on at
+249 × 123 mm with `--gap 4`, but that leaves half a millimetre at the edges and
+no room for a skirt, so use the two-plate pair instead.
+
+### STL or 3MF?
+
+**Use the 3MF if you are slicing it yourself.** It records the unit as
+millimetres, so nothing can scale it by 25.4 by mistake, and it keeps the
+parts as separate objects you can colour or move individually. It is also
+about half the file size.
+
+**Use the STL if a print service or an unfamiliar tool asks for a file.** STL
+is read by everything, and some services accept nothing else. The cost is that
+an STL is one undifferentiated soup of triangles with no units — the slicer
+has to infer millimetres, and the parts arrive as one object that you may have
+to split.
+
+The geometry is identical either way. These 3MFs carry geometry and units
+only, not print settings, so there is nothing to miss by choosing the STL.
+
+Every part in every file has been checked after export: watertight, consistent
+winding, flat on the bed, no part overlapping another.
 
 ## Settings
 
