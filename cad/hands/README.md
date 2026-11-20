@@ -9,23 +9,39 @@ with belts) and sized to the measured dial.
 Pick by the printer's bed, because the single plate is 226 mm deep and a lot of
 common beds are not.
 
-### Prusa MK4 (bed 250 × 210) — two plates
+### Prusa MK4 (bed 250 × 210) — two plates, hands *and* bezels
+
+![both MK4 plates](print-plates-mk4.png)
 
 | File | Size | Contains |
 |---|---|---|
-| `print-plate-mk4-1of2-halo.stl` | 103 × 103 mm, 19 g | Becky, Elijah, Evan |
-| `print-plate-mk4-2of2-halo.stl` | 119 × 117 mm, 24 g | Austin, Caleb, Micah |
+| `print-plate-mk4-1of2-halo.stl` | 172 × 162 mm, 33 cm³ | Becky, Evan, Elijah + 3 bezels |
+| `print-plate-mk4-2of2-halo.stl` | 172 × 177 mm, 37 cm³ | Caleb, Austin, Micah + 3 bezels |
 
-Also as `.3mf`, and in `-plaque` if you want that style. Both plates together
-are the complete set of six.
+Also as `.3mf` and `.step`, and in `-plaque` if you want that style. **The two
+plates together are the whole front of the clock**: all six hands and all six
+display bezels, 12 parts, nothing else to print and nothing to order twice.
+
+Everything sits flat on the bed and nothing overhangs, so no supports.
+87 g of PLA if it were printed solid; a normal infill is well under that.
+
+Rebuild them with:
+
+```
+python build_hands.py --preset option-d --style halo --plate \
+    --bed 250 210 --tag mk4 \
+    --extra cad/bezels/bezel-ornate.step --extra-count 6
+```
 
 ### Bambu A1 / P1S / X1, Prusa XL (bed 256 or bigger) — one plate
 
 | File | Size | Contains |
 |---|---|---|
-| `print-plate-option-d-halo.3mf` | 119 × 226 mm, 43 g | all six |
+| `print-plate-option-d-halo.3mf` | 119 × 226 mm, 43 g | all six hands |
 
-Also `.stl`, and `-plaque.stl`.
+Also `.stl`, and `-plaque.stl`. **Hands only** — this plate predates the
+bezels. Print `cad/bezels/bezel-plate-ornate-x6.stl` alongside it, or just use
+the MK4 pair above, which fits any of these beds too.
 
 **A 226 mm plate does not fit an MK4.** Six will technically squeeze on at
 249 × 123 mm with `--gap 4`, but that leaves half a millimetre at the edges and

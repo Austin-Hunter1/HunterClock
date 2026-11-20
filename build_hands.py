@@ -842,23 +842,56 @@ def write_3d(hand: Hand, out_dir: Path) -> list[Path]:
     return written
 
 
+def load_extras(args) -> list:
+    """Load ``--extra-count`` copies of the ``--extra`` STEP file, if given.
+
+    STEP rather than STL on purpose: it carries the real solid, so the part
+    lands on the plate at the same quality as the hands instead of as a
+    re-tessellated mesh, and the plate's own watertight check still means
+    something afterwards.
+    """
+    if args.extra is None or args.extra_count <= 0:
+        return []
+    import cadquery as cq
+
+    if args.extra.suffix.lower() not in (".step", ".stp"):
+        raise RuntimeError(f"--extra wants a STEP file, not {args.extra.suffix}")
+    part = cq.importers.importStep(str(args.extra))
+    print(f"  extra: {args.extra.name} x{args.extra_count}")
+    return [part for _ in range(args.extra_count)]
+
+
 def write_plates(hands: list[Hand], out_dir: Path, *, bed=(256.0, 256.0), gap: float = 6.0,
-                 tag: str = "") -> list[Path]:
+                 tag: str = "", extras: list | None = None) -> list[Path]:
     """Write every hand onto as few print plates as the bed allows.
 
     Tries all six on one plate, then two plates, then three. Splitting beats
     clever packing here: two plates of three on a 220 mm bed is a normal way to
     print, and a bin packer that wedges six awkward wedges onto one bed would
     be a lot of code for one fewer print job.
+
+    Args:
+        extras: other solids -- display bezels, in practice -- to share out
+            evenly between the plates and lay in rows above the hands. They
+            are counted when deciding whether a split is needed, so adding
+            them can push a one-plate job onto two.
     """
+    extras = list(extras or [])
     for batches in (1, 2, 3, 6):
         size = -(-len(hands) // batches)
         groups = [hands[i:i + size] for i in range(0, len(hands), size)]
+        if extras:
+            chunk = -(-len(extras) // len(groups))
+            shares = [extras[i:i + chunk] for i in range(0, len(extras), chunk)]
+            shares += [[]] * (len(groups) - len(shares))
+        else:
+            shares = [[] for _ in groups]
         try:
             written = []
             for index, group in enumerate(groups, start=1):
                 suffix = "" if len(groups) == 1 else f"-{index}of{len(groups)}"
-                written += _write_one_plate(group, out_dir, bed=bed, gap=gap, tag=tag + suffix)
+                written += _write_one_plate(group, out_dir, bed=bed, gap=gap,
+                                            tag=tag + suffix, extras=shares[index - 1])
             return written
         except RuntimeError as exc:
             if batches == 6:
@@ -870,7 +903,7 @@ def write_plates(hands: list[Hand], out_dir: Path, *, bed=(256.0, 256.0), gap: f
 
 
 def _write_one_plate(hands: list[Hand], out_dir: Path, *, bed=(256.0, 256.0), gap: float = 6.0,
-                     tag: str = "") -> list[Path]:
+                     tag: str = "", extras: list | None = None) -> list[Path]:
     """Arrange every hand on one bed and write it as a single printable file.
 
     One row per hand, longest at the bottom, so the plate is as narrow as it can
@@ -941,6 +974,26 @@ def _write_one_plate(hands: list[Hand], out_dir: Path, *, bed=(256.0, 256.0), ga
     used_y = max(fp.bounds[3] for _h, _t, _ox, _oy, fp in placed) + gap
     if chosen_turn:
         print(f"  (hands turned {chosen_turn:.0f} degrees to fit the bed)")
+
+    # Extras go in rows above the hands. They are compact and round, so there
+    # is nothing to be gained from packing them in among the wedges, and
+    # keeping them in a block makes the plate easy to read on the bed.
+    cursor_x, row_top, row_height = gap, used_y, 0.0
+    for item in extras or []:
+        box = item.val().BoundingBox()
+        if cursor_x > gap and cursor_x + box.xlen + gap > bed[0]:
+            cursor_x, row_top, row_height = gap, row_top + row_height + gap, 0.0
+        solids.append(item.translate((cursor_x - box.xmin, row_top - box.ymin, -box.zmin)))
+        cursor_x += box.xlen + gap
+        row_height = max(row_height, box.ylen)
+        used_x = max(used_x, cursor_x)
+        used_y = max(used_y, row_top + box.ylen + gap)
+    if used_x > bed[0] or used_y > bed[1]:
+        raise RuntimeError(
+            f"{len(hands)} hand(s) and {len(extras or [])} extra(s) need "
+            f"{used_x:.0f} x {used_y:.0f} mm, more than the "
+            f"{bed[0]:.0f} x {bed[1]:.0f} mm bed"
+        )
 
     compound = cq.Compound.makeCompound([s.val() for s in solids])
     stem = f"print-plate{'-' + tag if tag else ''}-{ordered[0].style}"
@@ -1042,6 +1095,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--gap", type=float, default=6.0, help="clearance between parts on the plate, mm"
     )
+    parser.add_argument(
+        "--tag", default=None, metavar="NAME",
+        help="name the plate files after this instead of the preset, e.g. mk4",
+    )
+    parser.add_argument(
+        "--extra", type=Path, default=None, metavar="STEP",
+        help="another part to share out across the plates, e.g. cad/bezels/bezel-ornate.step",
+    )
+    parser.add_argument(
+        "--extra-count", type=int, default=6, metavar="N",
+        help="how many copies of --extra to place (default 6, one per screen)",
+    )
     args = parser.parse_args(argv)
 
     specs = HANDS
@@ -1100,7 +1165,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.plate and built and not args.svg_only:
             try:
                 written = write_plates(
-                    built, args.out, bed=tuple(args.bed), gap=args.gap, tag=args.preset
+                    built, args.out, bed=tuple(args.bed), gap=args.gap,
+                    tag=args.tag or args.preset, extras=load_extras(args),
                 )
                 for path in written:
                     print(f"  plate: {path.name}")

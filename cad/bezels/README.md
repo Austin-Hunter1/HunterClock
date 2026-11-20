@@ -15,6 +15,11 @@ match the cabinet's existing hardware.
 | `bezel-plate-ornate-x6.3mf` | same, if you are slicing it yourself |
 | `bezel-ornate.stl` / `.step` | one bezel, 5.9 cm³, for a test fit |
 
+**Or print them with the hands.** `cad/hands/print-plate-mk4-1of2-*.stl` and
+`-2of2-*.stl` carry three hands and three bezels each, so the two plates
+between them are the entire front of the clock. That is the better job to send
+to a print service: two files instead of three.
+
 **Print one first.** See the warning below.
 
 ![the ornate bezel](bezel-ornate.png)

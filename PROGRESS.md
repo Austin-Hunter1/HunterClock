@@ -266,3 +266,9 @@ hardware was connected in the session that wrote it. Specifically:
   **Untested on hardware.** No bezel has been printed and no display module
   has been test-fitted; the dimensions still come from a product listing, not
   a part in hand.
+* **Push 11** — the MK4 plates now carry the bezels as well as the hands.
+  `build_hands.py` gained `--tag`, `--extra` and `--extra-count`, so the pair
+  is reproducible from the committed script instead of a one-off: three hands
+  and three bezels per plate, 172 × 162 and 172 × 177 mm, 12 parts in two
+  files. `docs/PRINT-REQUEST.md` has the intake-form answers and the
+  description to paste.
