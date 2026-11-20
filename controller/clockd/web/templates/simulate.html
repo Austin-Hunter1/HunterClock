@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% block page_title %}Simulate &middot; {{ title }}{% endblock %}
+{% block content %}
+<h1>Simulate</h1>
+<p class="lede">Put a fake position or distance on any hand, play a scenario, or switch a
+location source off. An override expires on its own and shows a badge the whole time it is
+in force, so a forgotten test cannot quietly become the clock's normal behaviour.</p>
+
+<div class="grid two">
+  <div class="card">
+    <div id="dial"></div>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <div class="stack">
+    <div class="card">
+      <h2>Scenarios</h2>
+      <div class="row">
+        <div class="field">
+          <label for="scenario">Scenario</label>
+          <select id="scenario"></select>
+        </div>
+        <div class="field" style="flex:0 1 150px">
+          <label for="scenario-person">Person (if needed)</label>
+          <select id="scenario-person"></select>
+        </div>
+        <div class="field" style="flex:0 1 130px">
+          <label for="scenario-seconds">Over (seconds)</label>
+          <input id="scenario-seconds" type="number" value="60" min="5" max="3600">
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="primary" id="play" type="button">Play</button>
+        <button id="clear-all" type="button">Clear every override</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Location sources</h2>
+      <p class="small muted" style="margin:0 0 10px">
+        Switching a source off applies at once and lasts until the controller restarts.
+        To make it permanent, change it on the Config page.
+      </p>
+      <div id="sources" class="stack"></div>
+    </div>
+
+    <div class="card">
+      <h2>Fake a position</h2>
+      <div id="overrides" class="stack"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+const ui = window.clockui;
+let built = false;
+ui.buildDial(document.getElementById("dial"));
+
+ui.api("/api/scenarios").then((data) => {
+  const select = document.getElementById("scenario");
+  select.replaceChildren();
+  for (const scenario of data.scenarios) {
+    const option = document.createElement("option");
+    option.value = scenario.name;
+    option.textContent = scenario.title;
+    option.dataset.needsPerson = scenario.needs_person ? "1" : "";
+    select.appendChild(option);
+  }
+});
+
+function overrideRow(person) {
+  const row = document.createElement("div");
+  row.className = "card";
+  row.style.cssText = "padding:12px;box-shadow:none";
+
+  const head = document.createElement("div");
+  head.className = "row";
+  const sw = document.createElement("span");
+  sw.className = "sw";
+  sw.style.background = person.color;
+  const name = document.createElement("strong");
+  name.textContent = person.name;
+  const badge = document.createElement("span");
+  badge.id = "ov-badge-" + person.slug;
+  badge.className = "badge";
+  badge.hidden = true;
+  head.append(sw, name, badge);
+
+  const fields = document.createElement("div");
+  fields.className = "row";
+  fields.style.marginTop = "8px";
+
+  const mk = (label, id, placeholder, step) => {
+    const wrap = document.createElement("div");
+    wrap.className = "field";
+    wrap.style.flex = "1 1 92px";
+    const lab = document.createElement("label");
+    lab.htmlFor = id;
+    lab.textContent = label;
+    const input = document.createElement("input");
+    input.id = id;
+    input.type = "number";
+    input.step = step;
+    input.placeholder = placeholder;
+    wrap.append(lab, input);
+    return wrap;
+  };
+  fields.append(
+    mk("Latitude", "lat-" + person.slug, "44.91", "0.0001"),
+    mk("Longitude", "lon-" + person.slug, "-93.50", "0.0001"),
+    mk("or distance km", "dist-" + person.slug, "500", "1"),
+    mk("For (s)", "ttl-" + person.slug, "3600", "1"),
+  );
+
+  const buttons = document.createElement("div");
+  buttons.className = "row";
+  buttons.style.marginTop = "8px";
+  const set = document.createElement("button");
+  set.className = "small primary";
+  set.textContent = "Set override";
+  set.onclick = () => {
+    const lat = document.getElementById("lat-" + person.slug).value;
+    const lon = document.getElementById("lon-" + person.slug).value;
+    const dist = document.getElementById("dist-" + person.slug).value;
+    const ttl = document.getElementById("ttl-" + person.slug).value;
+    const body = { person: person.slug };
+    if (lat !== "" && lon !== "") { body.lat = Number(lat); body.lon = Number(lon); }
+    else if (dist !== "") { body.distance_km = Number(dist); }
+    else { ui.toast("Give coordinates, or a distance.", true); return; }
+    if (ttl !== "") body.ttl_s = Number(ttl);
+    ui.api("/api/override", body).then(() => ui.toast(person.name + " overridden"));
+  };
+  const clear = document.createElement("button");
+  clear.className = "small";
+  clear.textContent = "Clear";
+  clear.onclick = () => ui.api("/api/override/clear", { person: person.slug });
+  buttons.append(set, clear);
+
+  row.append(head, fields, buttons);
+  return row;
+}
+
+function sourceRow(source) {
+  const row = document.createElement("div");
+  row.className = "row";
+  const label = document.createElement("label");
+  label.style.cssText = "display:flex;align-items:center;gap:9px;text-transform:none;" +
+    "font-family:var(--body);font-size:14px;letter-spacing:0;color:var(--ink);margin:0";
+  const box = document.createElement("input");
+  box.type = "checkbox";
+  box.id = "src-" + source.name;
+  box.checked = source.enabled;
+  box.onchange = () => ui.api("/api/source", { name: source.name, enabled: box.checked })
+    .then(() => ui.toast(source.name + (box.checked ? " on" : " off")));
+  label.append(box, document.createTextNode(source.name));
+  const stats = document.createElement("span");
+  stats.className = "mono muted small";
+  stats.id = "srcstat-" + source.name;
+  row.append(label, stats);
+  return row;
+}
+
+ui.onState((state) => {
+  ui.drawHands(state.people);
+  ui.renderLegend(document.getElementById("legend"), state.people);
+
+  if (!built) {
+    const overrides = document.getElementById("overrides");
+    overrides.replaceChildren();
+    for (const person of state.people) overrides.appendChild(overrideRow(person));
+
+    const sources = document.getElementById("sources");
+    sources.replaceChildren();
+    for (const source of Object.values(state.sources || {})) sources.appendChild(sourceRow(source));
+
+    const people = document.getElementById("scenario-person");
+    people.replaceChildren();
+    for (const person of state.people) {
+      const option = document.createElement("option");
+      option.value = person.slug;
+      option.textContent = person.name;
+      people.appendChild(option);
+    }
+    built = true;
+  }
+
+  for (const person of state.people) {
+    const badge = document.getElementById("ov-badge-" + person.slug);
+    if (!badge) continue;
+    if (person.override) {
+      badge.hidden = false;
+      badge.className = "badge override";
+      badge.textContent = `override ${Math.round(person.override.seconds_left)}s left`;
+    } else {
+      badge.hidden = true;
+    }
+  }
+  for (const source of Object.values(state.sources || {})) {
+    const stats = document.getElementById("srcstat-" + source.name);
+    if (stats) {
+      stats.textContent = `${source.fixes ?? 0} fixes, ${source.errors ?? 0} errors` +
+        (source.topic ? ` · ${source.topic}` : "");
+    }
+    const box = document.getElementById("src-" + source.name);
+    if (box && document.activeElement !== box) box.checked = source.enabled;
+  }
+});
+
+document.getElementById("play").onclick = () => {
+  const select = document.getElementById("scenario");
+  const option = select.selectedOptions[0];
+  if (!option) return;
+  const body = { name: option.value, seconds: Number(document.getElementById("scenario-seconds").value) };
+  if (option.dataset.needsPerson) body.person = document.getElementById("scenario-person").value;
+  ui.api("/api/scenario", body).then(() => ui.toast("Scenario started"));
+};
+
+document.getElementById("clear-all").onclick = () => {
+  const state = ui.latest;
+  if (!state) return;
+  Promise.all(state.people.map((p) => ui.api("/api/override/clear", { person: p.slug })))
+    .then(() => ui.toast("All overrides cleared"));
+};
+</script>
+{% endblock %}

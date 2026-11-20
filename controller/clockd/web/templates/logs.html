@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block page_title %}Logs &middot; {{ title }}{% endblock %}
+{% block content %}
+<h1>Logs</h1>
+<p class="lede">Everything the controller has done, newest at the bottom. The same lines go
+to a rotating file on disk, and the diagnostic bundle on the System page includes them.</p>
+
+<div class="chips" id="chips"></div>
+<div class="row" style="margin-bottom:10px">
+  <div class="field"><input id="search" type="search" placeholder="Filter by text"></div>
+  <label style="display:flex;align-items:center;gap:7px;text-transform:none;font-family:var(--body);font-size:14px;letter-spacing:0;color:var(--ink);margin:0">
+    <input type="checkbox" id="follow" checked> Follow
+  </label>
+  <a class="button small" href="/api/logs/download">Download</a>
+</div>
+
+<div class="log" id="log"></div>
+
+<div class="card" style="margin-top:14px">
+  <h2>Recent MQTT publishes</h2>
+  <div class="log" id="mqtt" style="max-height:28vh"></div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+const ui = window.clockui;
+const CATEGORIES = ["serial-tx", "serial-rx", "mqtt-in", "mqtt-out", "fix", "action", "system", "error"];
+const active = new Set(CATEGORIES);
+let lastId = 0;
+
+const chips = document.getElementById("chips");
+for (const category of CATEGORIES) {
+  const chip = document.createElement("button");
+  chip.className = "chip on";
+  chip.textContent = category;
+  chip.onclick = () => {
+    if (active.has(category)) { active.delete(category); chip.className = "chip"; }
+    else { active.add(category); chip.className = "chip on"; }
+    lastId = 0;
+    document.getElementById("log").replaceChildren();
+    refresh();
+  };
+  chips.appendChild(chip);
+}
+
+function addLine(container, event) {
+  const line = document.createElement("div");
+  line.className = "log-line " + event.category;
+  const time = document.createElement("span");
+  time.className = "log-time";
+  time.textContent = ui.formatTime(event.at);
+  const cat = document.createElement("span");
+  cat.className = "log-cat";
+  cat.textContent = event.category;
+  const message = document.createElement("span");
+  message.className = "log-msg";
+  message.textContent = event.message;
+  line.append(time, cat, message);
+  container.appendChild(line);
+  while (container.childElementCount > 1200) container.removeChild(container.firstChild);
+}
+
+async function refresh() {
+  const params = new URLSearchParams();
+  params.set("limit", "400");
+  params.set("since_id", String(lastId));
+  if (active.size !== CATEGORIES.length) params.set("categories", [...active].join(","));
+  const search = document.getElementById("search").value.trim();
+  if (search) params.set("search", search);
+
+  let data;
+  try { data = await ui.api("/api/logs?" + params.toString()); } catch (error) { return; }
+
+  const log = document.getElementById("log");
+  const follow = document.getElementById("follow").checked;
+  for (const event of data.events) {
+    addLine(log, event);
+    if (event.id > lastId) lastId = event.id;
+  }
+  if (data.events.length && follow) log.scrollTop = log.scrollHeight;
+
+  const mqtt = document.getElementById("mqtt");
+  mqtt.replaceChildren();
+  for (const message of data.mqtt) {
+    const line = document.createElement("div");
+    line.className = "log-line";
+    const time = document.createElement("span");
+    time.className = "log-time";
+    time.textContent = ui.formatTime(message.at);
+    const topic = document.createElement("span");
+    topic.className = "log-cat";
+    topic.style.width = "200px";
+    topic.style.textTransform = "none";
+    topic.textContent = message.topic + (message.retain ? " (r)" : "");
+    const payload = document.createElement("span");
+    payload.className = "log-msg";
+    payload.textContent = message.payload;
+    line.append(time, topic, payload);
+    mqtt.appendChild(line);
+  }
+  if (follow) mqtt.scrollTop = mqtt.scrollHeight;
+}
+
+let searchTimer = null;
+document.getElementById("search").oninput = () => {
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    lastId = 0;
+    document.getElementById("log").replaceChildren();
+    refresh();
+  }, 300);
+};
+
+refresh();
+setInterval(refresh, 1500);
+</script>
+{% endblock %}

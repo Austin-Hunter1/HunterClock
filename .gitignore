@@ -1,2 +1,25 @@
 __pycache__/
 cad_out/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+
+# Secrets and machine-local state -- never commit these.
+.env
+config/clock.yaml
+config/*.local.yaml
+var/
+!var/.gitkeep
+deploy/*.local
+*.log
+logs/
+firmware/esp32/data/config.json
+firmware/esp32/data/*.wcl
+firmware/esp32/.pio/
+docs/img/ui/*.tmp.png
