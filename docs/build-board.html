@@ -492,7 +492,7 @@ own pins are the shaded cells; every other filled cell is a wire or a part you a
   consecutive holes, rows N+1 to N+5, then carried on to the +3V3 rail. It ties MS1, MS2, MS3,
   RESET and SLEEP high in one go: all three microstep pins high is 1/16 stepping, and RESET and
   SLEEP high is what wakes the driver up. Keep it clear of row N and row N+6, which are ENABLE
-  and STEP.</li>
+  and STEP. <a href="#bridge">How to make it</a>.</li>
   <li><strong>The capacitor sits in column h</strong>, positive leg in row N (VMOT) and negative
   in row N+1 (GND) — right at the pins, which is the point of it. If its legs are 3.5&nbsp;mm
   apart rather than 2.54, bend them gently to reach.</li>
@@ -504,6 +504,49 @@ own pins are the shaded cells; every other filled cell is a wire or a part you a
   meter before powering: the two leads of one coil read about 1.5&nbsp;Ω to each other and open
   to the other coil.</li>
 </ul>
+
+<h3 id="bridge">Making the five-pin bridge</h3>
+
+<p>Six of these to make, so it is worth having a method. The five pins are five separate
+tie-strips that all have to end up at 3.3&nbsp;V, and column <code>a</code> of each row is on the
+same strip as the driver pin in column <code>c</code>. So a single wire down column
+<code>a</code>, soldered at five points, is the whole connection — and because it carries on to
+the rail, there is no joint anywhere in it.</p>
+
+<ol>
+  <li><strong>Use a trimmed capacitor leg.</strong> You will have eleven electrolytics to shorten
+  and their legs are tinned solid wire, perfect stiffness, already the right diameter. Failing
+  that, 22&nbsp;AWG solid hookup wire with the insulation stripped off.</li>
+  <li><strong>Cut it about 20&nbsp;mm.</strong> Five holes at 2.54&nbsp;mm is 10.2&nbsp;mm, plus
+  the run to the rail and a little to hold.</li>
+  <li><strong>Bend an L.</strong> A straight section for the five holes and a right angle at the
+  row-N+5 end that reaches across to the +3V3 rail.</li>
+  <li><strong>Tack the two ends first.</strong> Solder row N+1 and row N+5 only, then look along
+  the wire. If it has wandered off column <code>a</code> you can reheat one joint and nudge it;
+  once all five are down it is a job to get out.</li>
+  <li><strong>Then the middle three</strong>, a second or two each. These pads lift if you cook
+  them.</li>
+  <li><strong>Solder the tail to the rail last</strong>, so the bridge is already anchored.</li>
+</ol>
+
+<p>Then meter it, before the drivers go in:</p>
+<ul>
+  <li><strong>Continuity</strong> from the +3V3 rail to column <code>b</code> of each of rows N+1
+  to N+5. Probe column <code>b</code>, not the wire — that proves the strip is live, which is
+  what the driver pin will actually sit in.</li>
+  <li><strong>No continuity</strong> from the rail to row N or row N+6. Those are ENABLE and
+  STEP, 2.54&nbsp;mm from each end of the bridge, and a whisker of solder across either one puts
+  3.3&nbsp;V on a Pico output.</li>
+</ul>
+
+<div class="card note">
+  <h3>The alternative: bridge the driver instead of the board</h3>
+  <p>You can solder the link across MS1–SLEEP on the carrier itself, before it ever goes near the
+  board, and then run one wire from the driver to the rail. It is easier to do at the bench with
+  the module in a vice, and it keeps column <code>a</code> empty.</p>
+  <p>The catch is that it welds the driver to 1/16 stepping and makes a swap a desoldering job,
+  which is the thing the sockets were bought to avoid. Bridge the board, not the module.</p>
+</div>
 
 <h3>Where each driver starts</h3>
 <div class="scroll">
