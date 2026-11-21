@@ -126,6 +126,128 @@ def render(
     return image
 
 
+def render_scene(
+    parts,
+    size: int = 900,
+    elevation: float = 0.0,
+    azimuth: float = 0.0,
+    margin: float = 0.04,
+    background: np.ndarray = BACKGROUND,
+    bounds=None,
+) -> np.ndarray:
+    """Rasterise several meshes into one image, each with its own colour.
+
+    :func:`render` draws one part against the frame. An assembly needs the
+    opposite: one camera, one z-buffer and one bounding box shared by every
+    part, so that a hand in front of a dial actually occludes it.
+
+    Args:
+        parts: ``(mesh, rgb)`` pairs. Colour is RGB 0-1.
+        size: Output edge length in pixels.
+        elevation: Camera angle above the scene, degrees. 0 looks straight
+            down the z axis, which for this clock is square on to the front.
+        azimuth: Camera angle around the scene, degrees.
+        margin: Fraction of the frame left empty around the assembly.
+        background: Background RGB 0-1.
+        bounds: ``(low, high)`` in view space to frame on, instead of the
+            scene's own extent. Pass the same value for every panel of a
+            series and the parts stay the same size from frame to frame.
+
+    Returns:
+        An ``(size, size, 3)`` float array in 0-1.
+    """
+    views, normal_sets = [], []
+    for mesh, _rgb in parts:
+        views.append(look_at(np.asarray(mesh.vertices, dtype=float), elevation, azimuth))
+        normal_sets.append(look_at(np.asarray(mesh.face_normals, dtype=float),
+                                   elevation, azimuth))
+
+    if bounds is None:
+        every = np.vstack(views)
+        low, high = every.min(axis=0), every.max(axis=0)
+    else:
+        low, high = np.asarray(bounds[0], float), np.asarray(bounds[1], float)
+    span = max((high - low)[:2].max(), 1e-6) * (1 + 2 * margin)
+    centre = (high + low) / 2
+    scale = size / span
+
+    image = np.repeat(background[None, None, :], size, 0).repeat(size, 1).astype(float)
+    zbuf = np.full((size, size), -np.inf)
+    key = KEY / np.linalg.norm(KEY)
+    fill = FILL / np.linalg.norm(FILL)
+
+    for (mesh, rgb), view, normals in zip(parts, views, normal_sets, strict=True):
+        colour = np.asarray(rgb, dtype=float)
+        screen = (view[:, :2] - centre[:2]) * scale + size / 2
+        screen[:, 1] = size - screen[:, 1]
+        depth = view[:, 2]
+        tris = mesh.faces
+        for index in range(len(tris)):
+            normal = normals[index]
+            if normal[2] <= 0:
+                continue
+            shade = (AMBIENT
+                     + 0.68 * max(float(normal @ key), 0.0)
+                     + 0.22 * max(float(normal @ fill), 0.0))
+            face_rgb = np.clip(colour * shade, 0, 1)
+            _triangle(image, zbuf, screen[tris[index]], depth[tris[index]], face_rgb, size)
+    return image
+
+
+def _triangle(image, zbuf, pts, zs, rgb, size) -> None:
+    """Z-buffer one triangle into the image."""
+    min_x, min_y = np.floor(pts.min(axis=0)).astype(int)
+    max_x, max_y = np.ceil(pts.max(axis=0)).astype(int)
+    min_x, min_y = max(min_x, 0), max(min_y, 0)
+    max_x, max_y = min(max_x, size - 1), min(max_y, size - 1)
+    if min_x > max_x or min_y > max_y:
+        return
+    gx, gy = np.meshgrid(np.arange(min_x, max_x + 1), np.arange(min_y, max_y + 1))
+    (x0, y0), (x1, y1), (x2, y2) = pts
+    denom = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
+    if abs(denom) < 1e-12:
+        return
+    a = ((y1 - y2) * (gx - x2) + (x2 - x1) * (gy - y2)) / denom
+    b = ((y2 - y0) * (gx - x2) + (x0 - x2) * (gy - y2)) / denom
+    c = 1.0 - a - b
+    inside = (a >= -1e-6) & (b >= -1e-6) & (c >= -1e-6)
+    if not inside.any():
+        return
+    z = a * zs[0] + b * zs[1] + c * zs[2]
+    window = zbuf[min_y:max_y + 1, min_x:max_x + 1]
+    nearer = inside & (z > window)
+    if not nearer.any():
+        return
+    window[nearer] = z[nearer]
+    image[min_y:max_y + 1, min_x:max_x + 1][nearer] = rgb
+
+
+def project(points, bounds, size: int, elevation: float = 0.0,
+            azimuth: float = 0.0, margin: float = 0.04):
+    """Where world points land in a rendered image, for labelling it afterwards.
+
+    Uses the same camera as :func:`render_scene`, so passing that call's
+    ``size``, ``bounds`` and angles puts a caption exactly on the feature it
+    names.
+    """
+    view = look_at(np.asarray(points, dtype=float), elevation, azimuth)
+    low, high = np.asarray(bounds[0], float), np.asarray(bounds[1], float)
+    span = max((high - low)[:2].max(), 1e-6) * (1 + 2 * margin)
+    centre = (high + low) / 2
+    screen = (view[:, :2] - centre[:2]) * (size / span) + size / 2
+    screen[:, 1] = size - screen[:, 1]
+    return screen
+
+
+def scene_bounds(parts, elevation: float = 0.0, azimuth: float = 0.0):
+    """The view-space extent of an assembly, to frame a series of panels alike."""
+    every = np.vstack([
+        look_at(np.asarray(mesh.vertices, dtype=float), elevation, azimuth)
+        for mesh, _rgb in parts
+    ])
+    return every.min(axis=0), every.max(axis=0)
+
+
 def save(image: np.ndarray, path: Path) -> Path:
     """Write an RGB float array to a PNG."""
     from PIL import Image

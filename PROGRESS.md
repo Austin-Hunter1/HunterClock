@@ -272,3 +272,12 @@ hardware was connected in the session that wrote it. Specifically:
   and three bezels per plate, 172 × 162 and 172 × 177 mm, 12 parts in two
   files. `docs/PRINT-REQUEST.md` has the intake-form answers and the
   description to paste.
+* **Push 12** — `tools/render_front.py` renders the clock front square on with
+  the hands at four sets of distances, built from the real parts: the measured
+  dial plate, the option-D hands and the ornate bezels. `preview3d` gained a
+  multi-part scene renderer and a projection helper so captions land on the
+  features they name. Two findings came out of looking at it. The displays do
+  not fit beside the dial on the 15 in board — 55.5 mm of stile against a
+  53.5 mm bezel — so the renders add a 75 mm wing each side. And ordinary
+  distances bunch: 2 to 14 km puts four hands inside a 70 degree arc, where
+  they overlap enough to be hard to read.
