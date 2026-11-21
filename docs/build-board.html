@@ -103,6 +103,22 @@ tbody tr:hover{background:var(--sunk)}
 .dia .dl{font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase}
 .dia .box{fill:var(--panel); stroke-width:1.5}
 .dia .ln{stroke:var(--muted); stroke-width:1.5; fill:none}
+.dia .wire{fill:none; stroke-width:2.6; stroke-linecap:round}
+.dia .pin{font-family:var(--font-mono); font-size:10.5px; fill:var(--fg)}
+.dia .pindim{font-family:var(--font-mono); font-size:10.5px; fill:var(--rule)}
+.dia .tag{font-family:var(--font-mono); font-size:9px; fill:var(--muted)}
+:root{
+  --w-red:#c0392b; --w-black:#2b2b2b; --w-yellow:#a9781a; --w-blue:#1f5b9e;
+  --w-green:#2e7d4f; --w-orange:#c2621c; --w-purple:#7b4fa8;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --w-red:#e8705c; --w-black:#c9cdd2; --w-yellow:#e0b33c; --w-blue:#79b0e8;
+  --w-green:#58b07e; --w-orange:#e89a5a; --w-purple:#b18be0;
+}}
+:root[data-theme="dark"]{
+  --w-red:#e8705c; --w-black:#c9cdd2; --w-yellow:#e0b33c; --w-blue:#79b0e8;
+  --w-green:#58b07e; --w-orange:#e89a5a; --w-purple:#b18be0;
+}
 </style>
 </head>
 <body>
@@ -657,6 +673,102 @@ supply stops being marginal. Stick a heatsink on each driver anyway.</p>
 <p>Six self-contained ESP32 + GC9A01 pairs, each on its own USB power, with no wire to the motor
 side at all. The Pi reaches them over WiFi. Nothing here is soldered — it's all female-to-female
 dupont between two pin headers.</p>
+
+<div class="dia scroll">
+<svg viewBox="0 0 780 530" role="img" aria-label="ESP32 dev board and GC9A01 display, with the eight wires between them">
+  <!-- ESP32 -->
+  <rect x="58" y="54" width="132" height="440" rx="6" fill="var(--panel)" stroke="var(--fg)" stroke-width="1.5"></rect>
+  <rect x="96" y="44" width="56" height="18" rx="3" fill="var(--sunk)" stroke="var(--rule)"></rect>
+  <text class="tag" x="124" y="38" text-anchor="middle">micro-USB, 5 V in</text>
+  <rect x="76" y="150" width="96" height="150" rx="3" fill="var(--sunk)" stroke="var(--rule)"></rect>
+  <text class="tag" x="124" y="228" text-anchor="middle">ESP32-WROOM-32</text>
+  <text class="dl" x="58" y="516" fill="var(--signal)">ESP32 dev board, 30 pin</text>
+
+  <!-- GC9A01 -->
+  <rect x="566" y="96" width="196" height="230" rx="6" fill="var(--panel)" stroke="var(--fg)" stroke-width="1.5"></rect>
+  <circle cx="692" cy="211" r="62" fill="var(--sunk)" stroke="var(--rule)"></circle>
+  <circle cx="692" cy="211" r="51" fill="#16181c" stroke="none"></circle>
+  <text class="dl" x="566" y="352" fill="var(--brass)">GC9A01 1.28 in round</text>
+
+  <!-- wires, drawn first so the pin blocks sit on top of their ends -->
+  <g class="wire">
+    <path d="M190 68 C 330 68, 430 120, 566 120" stroke="var(--w-red)"></path>
+    <path d="M190 68 C 360 68, 400 295, 566 295" stroke="var(--w-red)"></path>
+    <path d="M190 96 C 330 96, 430 145, 566 145" stroke="var(--w-black)"></path>
+    <path d="M190 292 C 330 292, 430 170, 566 170" stroke="var(--w-yellow)"></path>
+    <path d="M190 460 C 360 460, 420 195, 566 195" stroke="var(--w-blue)"></path>
+    <path d="M190 180 C 330 180, 430 220, 566 220" stroke="var(--w-purple)"></path>
+    <path d="M190 152 C 330 152, 430 245, 566 245" stroke="var(--w-green)"></path>
+    <path d="M190 264 C 330 264, 430 270, 566 270" stroke="var(--w-orange)"></path>
+  </g>
+
+  <!-- ESP32 header: the one side every wire lands on -->
+  <g>
+    <rect x="176" y="58" width="14" height="436" fill="var(--sunk)" stroke="var(--rule)"></rect>
+    <rect x="176" y="61" width="14" height="14" fill="var(--w-red)"></rect>
+    <text class="pin" x="170" y="72" text-anchor="end">3V3</text>
+    <rect x="176" y="89" width="14" height="14" fill="var(--w-black)"></rect>
+    <text class="pin" x="170" y="100" text-anchor="end">GND</text>
+    <text class="pindim" x="170" y="128" text-anchor="end">D15</text>
+    <rect x="176" y="145" width="14" height="14" fill="var(--w-green)"></rect>
+    <text class="pin" x="170" y="156" text-anchor="end">D2</text>
+    <rect x="176" y="173" width="14" height="14" fill="var(--w-purple)"></rect>
+    <text class="pin" x="170" y="184" text-anchor="end">D4</text>
+    <text class="pindim" x="170" y="212" text-anchor="end">RX2</text>
+    <text class="pindim" x="170" y="240" text-anchor="end">TX2</text>
+    <rect x="176" y="257" width="14" height="14" fill="var(--w-orange)"></rect>
+    <text class="pin" x="170" y="268" text-anchor="end">D5</text>
+    <rect x="176" y="285" width="14" height="14" fill="var(--w-yellow)"></rect>
+    <text class="pin" x="170" y="296" text-anchor="end">D18</text>
+    <text class="pindim" x="170" y="324" text-anchor="end">D19</text>
+    <text class="pindim" x="170" y="352" text-anchor="end">D21</text>
+    <text class="pindim" x="170" y="380" text-anchor="end">RX0</text>
+    <text class="pindim" x="170" y="408" text-anchor="end">TX0</text>
+    <text class="pindim" x="170" y="436" text-anchor="end">D22</text>
+    <rect x="176" y="453" width="14" height="14" fill="var(--w-blue)"></rect>
+    <text class="pin" x="170" y="464" text-anchor="end">D23</text>
+  </g>
+
+  <!-- GC9A01 header -->
+  <g>
+    <rect x="566" y="108" width="14" height="200" fill="var(--sunk)" stroke="var(--rule)"></rect>
+    <rect x="566" y="113" width="14" height="14" fill="var(--w-red)"></rect>
+    <text class="pin" x="586" y="124">VCC</text>
+    <rect x="566" y="138" width="14" height="14" fill="var(--w-black)"></rect>
+    <text class="pin" x="586" y="149">GND</text>
+    <rect x="566" y="163" width="14" height="14" fill="var(--w-yellow)"></rect>
+    <text class="pin" x="586" y="174">SCL</text>
+    <rect x="566" y="188" width="14" height="14" fill="var(--w-blue)"></rect>
+    <text class="pin" x="586" y="199">SDA</text>
+    <rect x="566" y="213" width="14" height="14" fill="var(--w-purple)"></rect>
+    <text class="pin" x="586" y="224">RES</text>
+    <rect x="566" y="238" width="14" height="14" fill="var(--w-green)"></rect>
+    <text class="pin" x="586" y="249">DC</text>
+    <rect x="566" y="263" width="14" height="14" fill="var(--w-orange)"></rect>
+    <text class="pin" x="586" y="274">CS</text>
+    <rect x="566" y="288" width="14" height="14" fill="var(--w-red)"></rect>
+    <text class="pin" x="586" y="299">BLK</text>
+  </g>
+
+  <text class="tag" x="58" y="470" fill="var(--brass)">D2 and D5 are</text>
+  <text class="tag" x="58" y="482" fill="var(--brass)">strapping pins</text>
+</svg>
+</div>
+
+<p>Every pin the display needs is on the <strong>same ESP32 header</strong>, which is the one
+convenience this board gives you: one ribbon of eight wires, no reaching round the back. The
+dimmed pins between them are untouched.</p>
+
+<div class="card warn">
+  <h3>Match by label, not by position</h3>
+  <p>Both boards come from a dozen makers and the header order is not standard. The one above is
+  the common 30-pin DevKit layout and the usual GC9A01 order, but <strong>find every pin by what
+  is printed next to it</strong>.</p>
+  <p>The display's names vary too, for the same signals: <code>SCL</code> is sometimes
+  <code>CLK</code>, <code>SDA</code> is <code>DIN</code>, <code>RES</code> is <code>RST</code>,
+  and <code>BLK</code> is <code>BL</code>. Check whether yours is a 3.3 V part or 3.3/5 V before
+  you put 3.3 V on <code>VCC</code>.</p>
+</div>
 
 <div class="scroll">
 <table>
