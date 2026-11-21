@@ -93,6 +93,16 @@ tbody tr:hover{background:var(--sunk)}
 .key{display:flex; flex-wrap:wrap; gap:.4rem 1.1rem; font-size:.82rem; color:var(--muted); margin:.6rem 0 0}
 .key span::before{content:"■ "; }
 .foot{margin-top:3.5rem; padding-top:1.2rem; border-top:1px solid var(--rule); color:var(--muted); font-size:.88rem}
+/* assembly diagram */
+.dia{margin:1.4rem 0}
+.dia svg{display:block; width:100%; min-width:40rem; max-width:48rem; height:auto}
+.dia .bt{font-family:var(--font-sans); font-size:13px; font-weight:600; fill:var(--fg)}
+.dia .bs{font-family:var(--font-sans); font-size:10.5px; fill:var(--muted)}
+.dia .bh{font-family:var(--font-mono); font-size:10px; fill:var(--hot)}
+.dia .wl{font-family:var(--font-mono); font-size:10px; fill:var(--muted)}
+.dia .dl{font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase}
+.dia .box{fill:var(--panel); stroke-width:1.5}
+.dia .ln{stroke:var(--muted); stroke-width:1.5; fill:none}
 </style>
 </head>
 <body>
@@ -104,9 +114,137 @@ tbody tr:hover{background:var(--sunk)}
 Companion to <strong>Circuit Diagram Rev. 2</strong>, which has the schematic; this one is
 what to do with a soldering iron in your hand.</p>
 
+<h2 id="together" style="border-top:0; margin-top:2.2rem; padding-top:0">How it goes together</h2>
+<p>Every part on the bench, and what it joins to. Three power domains, and the only thing
+crossing between the motor side and the display side is WiFi.</p>
+
+<div class="dia scroll">
+<svg viewBox="0 0 760 684" role="img" aria-label="Assembly diagram: three power domains, the parts in each, and the wires between them">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--muted)"></path>
+    </marker>
+  </defs>
+
+  <!-- domain divider: no copper crosses this -->
+  <line x1="520" y1="40" x2="520" y2="628" stroke="var(--rule)" stroke-width="1.5" stroke-dasharray="5 5"></line>
+  <text class="dl" x="540" y="444" fill="var(--brass)">No wire crosses</text>
+  <text class="bs" x="540" y="466">The six display nodes are a</text>
+  <text class="bs" x="540" y="480">separate 5 V island. The Pi</text>
+  <text class="bs" x="540" y="494">reaches them over WiFi, and</text>
+  <text class="bs" x="540" y="508">nothing joins them to the</text>
+  <text class="bs" x="540" y="522">motor side.</text>
+
+  <!-- row 1: supplies -->
+  <rect class="box" x="20" y="86" width="220" height="54" rx="5" stroke="var(--signal)"></rect>
+  <text class="bt" x="130" y="109" text-anchor="middle">5 V 3 A supply</text>
+  <text class="bs" x="130" y="126" text-anchor="middle">USB-C</text>
+
+  <rect class="box" x="290" y="86" width="210" height="54" rx="5" stroke="var(--hot)"></rect>
+  <text class="bt" x="395" y="109" text-anchor="middle">12 V 2 A supply</text>
+  <text class="bs" x="395" y="126" text-anchor="middle">2.1 × 5.5 mm, centre positive</text>
+
+  <rect class="box" x="540" y="86" width="200" height="54" rx="5" stroke="var(--brass)"></rect>
+  <text class="bt" x="640" y="109" text-anchor="middle">USB charging strip</text>
+  <text class="bs" x="640" y="126" text-anchor="middle">5 V, six ports</text>
+
+  <!-- row 2 -->
+  <rect class="box" x="20" y="192" width="220" height="62" rx="5" stroke="var(--signal)"></rect>
+  <text class="bt" x="130" y="215" text-anchor="middle">Raspberry Pi 4</text>
+  <text class="bs" x="130" y="232" text-anchor="middle">runs clockd, Mosquitto</text>
+  <text class="bs" x="130" y="246" text-anchor="middle">hostname weasley-clock</text>
+
+  <rect class="box" x="290" y="192" width="210" height="62" rx="5" stroke="var(--hot)"></rect>
+  <text class="bt" x="395" y="215" text-anchor="middle">Barrel-jack adapter</text>
+  <text class="bs" x="395" y="232" text-anchor="middle">screw terminals</text>
+  <text class="bs" x="395" y="246" text-anchor="middle">meter the polarity first</text>
+
+  <rect class="box" x="540" y="192" width="200" height="62" rx="5" stroke="var(--brass)"></rect>
+  <text class="bt" x="640" y="215" text-anchor="middle">ESP32 dev board × 6</text>
+  <text class="bs" x="640" y="232" text-anchor="middle">one per person</text>
+  <text class="bh" x="640" y="246" text-anchor="middle">on the bench: 1 of 6</text>
+
+  <!-- row 3 -->
+  <rect class="box" x="20" y="306" width="220" height="74" rx="5" stroke="var(--signal)"></rect>
+  <text class="dl" x="130" y="325" text-anchor="middle" fill="var(--signal)">Logic board</text>
+  <text class="bt" x="130" y="345" text-anchor="middle">Pico + 2 × 20 header</text>
+  <text class="bs" x="130" y="362" text-anchor="middle">large solder breadboard</text>
+  <text class="bs" x="130" y="375" text-anchor="middle">3V3 rail lives here</text>
+
+  <rect class="box" x="290" y="306" width="210" height="74" rx="5" stroke="var(--hot)"></rect>
+  <text class="dl" x="395" y="325" text-anchor="middle" fill="var(--hot)">Power board</text>
+  <text class="bt" x="395" y="345" text-anchor="middle">5 × 100 µF bulk</text>
+  <text class="bs" x="395" y="362" text-anchor="middle">small solder breadboard</text>
+  <text class="bs" x="395" y="375" text-anchor="middle">star ground lives here</text>
+
+  <rect class="box" x="540" y="306" width="200" height="74" rx="5" stroke="var(--brass)"></rect>
+  <text class="bt" x="640" y="330" text-anchor="middle">GC9A01 display × 6</text>
+  <text class="bs" x="640" y="347" text-anchor="middle">1.28 in round, in a</text>
+  <text class="bs" x="640" y="360" text-anchor="middle">printed ornate bezel</text>
+  <text class="bh" x="640" y="375" text-anchor="middle">on the bench: 0 of 6</text>
+
+  <!-- row 4: driver boards, spanning both left columns -->
+  <rect class="box" x="20" y="436" width="480" height="96" rx="5" stroke="var(--hot)"></rect>
+  <text class="dl" x="260" y="456" text-anchor="middle" fill="var(--hot)">Driver boards × 2</text>
+  <text class="bt" x="260" y="477" text-anchor="middle">6 × A4988 · 6 × 100 µF · 6 × heatsink · 6 × 2×8 socket</text>
+  <text class="bs" x="260" y="496" text-anchor="middle">three drivers per board, eight rows each, one blank row between</text>
+  <text class="bh" x="260" y="515" text-anchor="middle">on the bench: 3 drivers, 3 heatsinks, 4 of 11 caps, no sockets</text>
+
+  <!-- row 5: motors -->
+  <rect class="box" x="20" y="588" width="480" height="62" rx="5" stroke="var(--hot)"></rect>
+  <text class="bt" x="260" y="612" text-anchor="middle">Stepper motors × 6</text>
+  <text class="bs" x="260" y="629" text-anchor="middle">2 × 23HS18 NEMA23 (Becky, Evan) · 4 × 17HS13 NEMA17</text>
+  <text class="bh" x="260" y="643" text-anchor="middle">on the bench: 0 of 6</text>
+
+  <!-- connectors, supplies to row 2 -->
+  <line class="ln" x1="130" y1="140" x2="130" y2="188" marker-end="url(#ah)"></line>
+  <text class="wl" x="138" y="168">USB-C</text>
+  <line class="ln" x1="395" y1="140" x2="395" y2="188" marker-end="url(#ah)"></line>
+  <text class="wl" x="403" y="168">barrel plug</text>
+  <line class="ln" x1="640" y1="140" x2="640" y2="188" marker-end="url(#ah)"></line>
+  <text class="wl" x="648" y="168">one port each</text>
+
+  <!-- row 2 to row 3 -->
+  <line class="ln" x1="130" y1="254" x2="130" y2="302" marker-end="url(#ah)"></line>
+  <text class="wl" x="138" y="282">USB-A → micro-USB</text>
+  <line class="ln" x1="395" y1="254" x2="395" y2="302" marker-end="url(#ah)"></line>
+  <text class="wl" x="403" y="282">2 screw terminals</text>
+  <line class="ln" x1="640" y1="254" x2="640" y2="302" marker-end="url(#ah)"></line>
+  <text class="wl" x="648" y="282">8 × F-F dupont</text>
+
+  <!-- the star-ground wire between the two left boards -->
+  <text class="wl" x="265" y="338" text-anchor="middle">GND</text>
+  <line class="ln" x1="240" y1="348" x2="290" y2="348"></line>
+
+  <!-- row 3 to driver boards -->
+  <line class="ln" x1="130" y1="380" x2="130" y2="432" marker-end="url(#ah)"></line>
+  <text class="wl" x="138" y="402">13 signals</text>
+  <text class="wl" x="138" y="415">+ 3V3 + GND</text>
+  <line class="ln" x1="395" y1="380" x2="395" y2="432" marker-end="url(#ah)"></line>
+  <text class="wl" x="403" y="402">+12 V + GND</text>
+  <text class="wl" x="403" y="415">20 AWG</text>
+
+  <!-- driver boards to motors -->
+  <line class="ln" x1="260" y1="532" x2="260" y2="584" marker-end="url(#ah)"></line>
+  <text class="wl" x="268" y="554">4 wires each:</text>
+  <text class="wl" x="268" y="567">GRN, GRN/WHT, RED, RED/WHT</text>
+
+  <!-- domain legend -->
+  <text class="dl" x="20" y="72" fill="var(--signal)">Logic · 5 V and 3.3 V</text>
+  <text class="dl" x="290" y="72" fill="var(--hot)">Motor · 12 V</text>
+  <text class="dl" x="540" y="72" fill="var(--brass)">Displays · 5 V</text>
+</svg>
+</div>
+
+<p>The three domains share exactly one point of contact: the Pico's GND goes to the power
+board's ground rail, which is the star point. That single wire is what lets the drivers read
+STEP and DIR against the same ground the Pico drives them from. The display column shares
+nothing at all.</p>
+
 <div class="toc">
   <div class="eyebrow" style="margin-bottom:.3rem">Contents</div>
   <ol>
+    <li><a href="#together">How it goes together</a></li>
     <li><a href="#parts">What you have, what's missing</a></li>
     <li><a href="#boards">Three boards</a></li>
     <li><a href="#reading">Reading a solder breadboard</a></li>
