@@ -157,10 +157,23 @@ Two consequences worth knowing.
 * **The tips all read on the same scale.** With the old staggered 85–115 mm
   radii each hand pointed at a different radius. Now every tip lands on the
   chapter ring.
-* **The names bunch near the hub.** Putting the ornament inboard is what the
-  antique shape asks for, and it means two hands within about 25 degrees
-  overlap their words. The earlier version had the word out at the tip, which
-  separated them better and looked wrong.
+* **The names are staggered, 5 mm per level.** Level 1's word starts 12.8 mm
+  out and level 6's at 37.8 mm, so no two hands carry their name at the same
+  radius. Level 1 innermost also puts the frontmost hand's bulk furthest out,
+  leaving only its thin neck over the names behind it.
+
+  It does not remove the overlap, and it cannot: the six names come to 291 mm
+  of word and the dial radius is 115 mm, so they will not fit in separate
+  bands however they are arranged. What the stagger buys is that when two
+  hands cross you still see where each name starts, and with all six stacked
+  at 12 o'clock you get a 5 mm sliver of each rather than one name hiding
+  five.
+
+  5 mm is the most the arrangement allows: Micah is the longest word at the
+  highest level, and more stagger leaves his neck under 22 mm. Assigning the
+  slots by word length instead of by level — longest innermost — would allow
+  8 mm and a 40 mm spread, at the cost of the level ordering. `build_hand`
+  refuses rather than letting either go wrong silently.
 
 Nothing got longer: 115 mm was already the longest of the option-D radii, so
 no tube carries a hand it was not sized for. The hands weigh 4.2–6.2 g, where

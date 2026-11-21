@@ -301,3 +301,9 @@ hardware was connected in the session that wrote it. Specifically:
   earlier version had the word at the tip and the plain run at the hub, which
   was backwards. Tip stops at 1.0 mm wide because a nozzle cannot print a
   knife edge.
+* **Push 16** — each level's name sits 5 mm further out than the one behind
+  it, so no two hands carry their word at the same radius. It reduces the
+  overlap rather than removing it: 291 mm of word will not fit in 115 mm of
+  radius however it is arranged. 5 mm is the most the level ordering allows
+  before Micah's neck drops under 22 mm, and `build_hand` now refuses rather
+  than trusting that arithmetic.

@@ -101,6 +101,20 @@ POINT_STEM = 4.0
 POINT_BOSS = 18.0
 #: Gap between the boss and the start of the word, bridged by the collar.
 POINT_COLLAR = 2.0
+#: How much further out each level's word sits than the one behind it.
+#:
+#: The six names come to 291 mm of word and the dial radius is 115 mm, so
+#: they cannot be given separate bands; what this buys is that no two hands
+#: carry their name at the same radius, so when two cross you still see where
+#: each one starts. Level 1 sits innermost and level 6 outermost, which also
+#: puts the frontmost hand's bulk furthest out, leaving only its thin neck
+#: over the names behind it.
+#:
+#: 5 mm is what the longest word at the highest level allows: Micah is 53 mm
+#: at level 6, and more stagger than this leaves too little neck. ``check``
+#: enforces it rather than trusting the arithmetic.
+POINT_STAGGER = 5.0
+POINT_NECK_MIN = 22.0
 
 #: The neck, as (fraction along the taper, half-width as a fraction of the
 #: word band's half-width). Taken off an antique serpentine hand: the blade
@@ -668,8 +682,16 @@ def build_hand(
         # has its plain run and the plain run where the ornament belongs.
         word, scale = place_word_tall(
             art, height=POINT_CAP,
-            inner_x=POINT_BOSS / 2.0 + POINT_COLLAR + halo,
+            inner_x=(POINT_BOSS / 2.0 + POINT_COLLAR + halo
+                     + (spec.level - 1) * POINT_STAGGER),
         )
+        neck_len = target_tip - (word.bounds[2] + halo)
+        if neck_len < POINT_NECK_MIN:
+            raise RuntimeError(
+                f"{spec.person}: at level {spec.level} the word ends "
+                f"{neck_len:.1f} mm from the tip, under the {POINT_NECK_MIN} mm "
+                f"the neck needs. Lower POINT_STAGGER or POINT_CAP."
+            )
         merged = _as_multipolygon(word.buffer(halo, quad_segs=16, join_style=1))
         if len(merged.geoms) != 1:
             raise RuntimeError(
