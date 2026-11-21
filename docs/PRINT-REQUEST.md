@@ -6,8 +6,8 @@ Everything needed to fill in the intake form, and the two files to upload.
 
 | File | Size | Contains |
 |---|---|---|
-| `cad/hands/print-plate-mk4-1of2-spear.stl` | 172.5 × 126.1 × 7.5 mm | 3 clock hands + 3 bezels |
-| `cad/hands/print-plate-mk4-2of2-spear.stl` | 172.5 × 126.1 × 7.5 mm | 3 clock hands + 3 bezels |
+| `cad/hands/print-plate-mk4-1of2-pointed.stl` | 172.5 × 136.3 × 7.5 mm | 3 clock hands + 3 bezels |
+| `cad/hands/print-plate-mk4-2of2-pointed.stl` | 172.5 × 136.3 × 7.5 mm | 3 clock hands + 3 bezels |
 
 Between them that is the whole front of the clock — 12 parts, nothing else to
 print. STL rather than 3MF because the form asks for a file a service can read

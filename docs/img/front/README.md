@@ -11,7 +11,7 @@ where `birthday_clock.m` puts them.
 | `front-all.png` | all three on one sheet |
 
 Built from the parts that exist: the measured `Clock_Face_1.3mf` dial plate,
-the six option-D hands, the six ornate bezels. The hood board and its opening
+the six pointed hands, the six ornate bezels. The hood board and its opening
 are Caleb's measurements.
 
 ## The positions

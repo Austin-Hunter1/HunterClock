@@ -15,20 +15,20 @@ common beds are not.
 
 | File | Size | Contains |
 |---|---|---|
-| `print-plate-mk4-1of2-spear.stl` | 172 × 126 mm, 30 cm³ | Becky, Evan, Elijah + 3 bezels |
-| `print-plate-mk4-2of2-spear.stl` | 172 × 126 mm, 30 cm³ | Caleb, Austin, Micah + 3 bezels |
+| `print-plate-mk4-1of2-pointed.stl` | 172 × 136 mm, 30 cm³ | Becky, Evan, Elijah + 3 bezels |
+| `print-plate-mk4-2of2-pointed.stl` | 172 × 136 mm, 28 cm³ | Caleb, Austin, Micah + 3 bezels |
 
 Also as `.3mf` and `.step`, and in `-halo` or `-plaque` for the older shapes. **The two
 plates together are the whole front of the clock**: all six hands and all six
 display bezels, 12 parts, nothing else to print and nothing to order twice.
 
 Everything sits flat on the bed and nothing overhangs, so no supports.
-61 cm³ of PLA if it were printed solid; a normal infill is well under that.
+58 cm³ of PLA if it were printed solid; a normal infill is well under that.
 
 Rebuild them with:
 
 ```
-python build_hands.py --preset option-d --style spear --plate \
+python build_hands.py --preset option-d --style pointed --plate \
     --bed 250 210 --tag mk4 \
     --extra cad/bezels/bezel-ornate.step --extra-count 6
 ```
@@ -123,26 +123,37 @@ while the exported mesh was unprintable.
 
 ## The shape
 
-Every hand is the same: a **15 mm wide blade, 115 mm from the axis, ending in
-a point**. The name stands 0.6 mm proud of it at a 12 mm cap height, the same
-height on all six, set near the tip where it is clear of the hub.
+The hand's own outline is the word, as before — but regularised so the six
+match.
 
-Three things follow from making them identical.
+* **One letter height, 18 mm, on all six.** The word is no longer stretched to
+  fill the hand, so "Mom" is not set in letters half the height of "Elijah".
+* **One width, 21.6 mm.** It follows from the letter height plus a halo, and
+  the halo is the most any of the six needs to fuse its loose pieces (Caleb,
+  1.54 mm) rounded up, used on all six so the widths match exactly.
+* **One length, 115 mm**, ending in a point. With the letter height fixed the
+  words come out different lengths — 74 mm for "Mom", 38 mm for "Dad" — so a
+  **tapered point** carries each one out to the same tip radius. A short name
+  gets a long point and a long name a short one.
+
+The point is concave rather than a straight triangle. Straight off a 21.6 mm
+blade is a 20° half-angle, which reads as an arrowhead; curving the sides in
+narrows it at once and leaves a long thin tip, which is easier to read against
+the chapter ring.
+
+The stem between hub and word is deliberately slim. The first attempt reused
+the halo style's neck, which widens until it meets the word; at a fixed letter
+height the short names sit far out, and a full-width neck turned the whole
+hand into a solid arrow with the letters stranded at the end of it.
+
+Two things follow from making them match.
 
 * **The tips all read on the same scale.** With the old staggered 85–115 mm
-  radii each hand pointed at a different radius, which is fine for telling
-  them apart and wrong for a dial. Now every tip lands on the chapter ring.
+  radii each hand pointed at a different radius. Now every tip lands on the
+  chapter ring.
 * **Nothing got longer.** 115 mm was already the longest of the option-D
-  radii, so the tube stack carries no load it was not sized for. The hands
-  all weigh 5.2–5.3 g, where they used to run 4.2 to 9.7.
-* **Two hands close together now hide each other.** They are the same
-  silhouette at the same radius, 3.5 mm apart in z, so within about 8 degrees
-  the front one covers the one behind. The names are the only thing that
-  distinguishes them, and they sit at the same radius too. If that turns out
-  to matter, staggering the name along the blade by level fixes it without
-  changing the outline.
+  radii, so no tube carries a hand it was not sized for. The hands weigh
+  4.4–6.3 g, where they used to run 4.2 to 9.7.
 
-The older shapes are still there: `--style halo` makes the hand's outline the
-word itself, and `--style plaque` sets the word on a tapered nameplate sized
-to it. Neither has a consistent width or length.
-
+`--style halo` and `--style plaque` still build the older shapes, neither of
+which has a consistent width, length or letter height.
