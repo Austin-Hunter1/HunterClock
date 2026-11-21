@@ -226,7 +226,7 @@ crossing between the motor side and the display side is WiFi.</p>
   <line class="ln" x1="395" y1="254" x2="395" y2="302" marker-end="url(#ah)"></line>
   <text class="wl" x="403" y="282">2 screw terminals</text>
   <line class="ln" x1="640" y1="254" x2="640" y2="302" marker-end="url(#ah)"></line>
-  <text class="wl" x="648" y="282">8 × F-F dupont</text>
+  <text class="wl" x="648" y="282">7 × F-F dupont</text>
 
   <!-- the star-ground wire between the two left boards -->
   <text class="wl" x="265" y="338" text-anchor="middle">GND</text>
@@ -671,7 +671,7 @@ supply stops being marginal. Stick a heatsink on each driver anyway.</p>
 
 <h2 id="displays">Display nodes</h2>
 <p>Six self-contained ESP32 + GC9A01 pairs, each on its own USB power, with no wire to the motor
-side at all. The Pi reaches them over WiFi. Nothing here is soldered — it's all female-to-female
+side at all. The Pi reaches them over WiFi. Nothing here is soldered — it is all female-to-female
 dupont between two pin headers.</p>
 
 <div class="dia scroll">
@@ -688,18 +688,17 @@ dupont between two pin headers.</p>
   <rect x="566" y="96" width="196" height="230" rx="6" fill="var(--panel)" stroke="var(--fg)" stroke-width="1.5"></rect>
   <circle cx="692" cy="211" r="62" fill="var(--sunk)" stroke="var(--rule)"></circle>
   <circle cx="692" cy="211" r="51" fill="#16181c" stroke="none"></circle>
-  <text class="dl" x="566" y="352" fill="var(--brass)">GC9A01 1.28 in round</text>
+  <text class="dl" x="566" y="352" fill="var(--brass)">GC9A01 1.28 in round, 7 pin</text>
 
   <!-- wires, drawn first so the pin blocks sit on top of their ends -->
   <g class="wire">
     <path d="M190 68 C 330 68, 430 120, 566 120" stroke="var(--w-red)"></path>
-    <path d="M190 68 C 360 68, 400 295, 566 295" stroke="var(--w-red)"></path>
     <path d="M190 96 C 330 96, 430 145, 566 145" stroke="var(--w-black)"></path>
     <path d="M190 292 C 330 292, 430 170, 566 170" stroke="var(--w-yellow)"></path>
     <path d="M190 460 C 360 460, 420 195, 566 195" stroke="var(--w-blue)"></path>
-    <path d="M190 180 C 330 180, 430 220, 566 220" stroke="var(--w-purple)"></path>
-    <path d="M190 152 C 330 152, 430 245, 566 245" stroke="var(--w-green)"></path>
-    <path d="M190 264 C 330 264, 430 270, 566 270" stroke="var(--w-orange)"></path>
+    <path d="M190 152 C 330 152, 430 220, 566 220" stroke="var(--w-green)"></path>
+    <path d="M190 264 C 330 264, 430 245, 566 245" stroke="var(--w-orange)"></path>
+    <path d="M190 180 C 330 180, 430 270, 566 270" stroke="var(--w-purple)"></path>
   </g>
 
   <!-- ESP32 header: the one side every wire lands on -->
@@ -731,7 +730,7 @@ dupont between two pin headers.</p>
 
   <!-- GC9A01 header -->
   <g>
-    <rect x="566" y="108" width="14" height="200" fill="var(--sunk)" stroke="var(--rule)"></rect>
+    <rect x="566" y="108" width="14" height="176" fill="var(--sunk)" stroke="var(--rule)"></rect>
     <rect x="566" y="113" width="14" height="14" fill="var(--w-red)"></rect>
     <text class="pin" x="586" y="124">VCC</text>
     <rect x="566" y="138" width="14" height="14" fill="var(--w-black)"></rect>
@@ -740,14 +739,12 @@ dupont between two pin headers.</p>
     <text class="pin" x="586" y="174">SCL</text>
     <rect x="566" y="188" width="14" height="14" fill="var(--w-blue)"></rect>
     <text class="pin" x="586" y="199">SDA</text>
-    <rect x="566" y="213" width="14" height="14" fill="var(--w-purple)"></rect>
-    <text class="pin" x="586" y="224">RES</text>
-    <rect x="566" y="238" width="14" height="14" fill="var(--w-green)"></rect>
-    <text class="pin" x="586" y="249">DC</text>
-    <rect x="566" y="263" width="14" height="14" fill="var(--w-orange)"></rect>
-    <text class="pin" x="586" y="274">CS</text>
-    <rect x="566" y="288" width="14" height="14" fill="var(--w-red)"></rect>
-    <text class="pin" x="586" y="299">BLK</text>
+    <rect x="566" y="213" width="14" height="14" fill="var(--w-green)"></rect>
+    <text class="pin" x="586" y="224">DC</text>
+    <rect x="566" y="238" width="14" height="14" fill="var(--w-orange)"></rect>
+    <text class="pin" x="586" y="249">CS</text>
+    <rect x="566" y="263" width="14" height="14" fill="var(--w-purple)"></rect>
+    <text class="pin" x="586" y="274">RST</text>
   </g>
 
   <text class="tag" x="58" y="470" fill="var(--brass)">D2 and D5 are</text>
@@ -756,7 +753,7 @@ dupont between two pin headers.</p>
 </div>
 
 <p>Every pin the display needs is on the <strong>same ESP32 header</strong>, which is the one
-convenience this board gives you: one ribbon of eight wires, no reaching round the back. The
+convenience this board gives you: one ribbon of seven wires, no reaching round the back. The
 dimmed pins between them are untouched.</p>
 
 <div class="card warn">
@@ -776,15 +773,25 @@ dimmed pins between them are untouched.</p>
   <thead><tr><th>GC9A01 pin</th><th>ESP32 pin</th><th>What it is</th><th>Colour</th></tr></thead>
   <tbody>
     <tr><td class="n">VCC</td><td class="n">3V3</td><td>3.3 V</td><td>Red</td></tr>
-    <tr><td class="n">BLK</td><td class="n">3V3</td><td>Backlight, tied high</td><td>Red, short</td></tr>
     <tr><td class="n">GND</td><td class="n">GND</td><td>Ground</td><td>Black</td></tr>
-    <tr><td class="n">SCL</td><td class="n">GPIO18</td><td>VSPI clock</td><td>Yellow</td></tr>
-    <tr><td class="n">SDA</td><td class="n">GPIO23</td><td>VSPI data</td><td>Blue</td></tr>
+    <tr><td class="n">SCL</td><td class="n">GPIO18</td><td>VSPI clock (may be marked CLK)</td><td>Yellow</td></tr>
+    <tr><td class="n">SDA</td><td class="n">GPIO23</td><td>VSPI data (may be marked DIN)</td><td>Blue</td></tr>
     <tr><td class="n">DC</td><td class="n">GPIO2</td><td>Data/command</td><td>Green</td></tr>
     <tr><td class="n">CS</td><td class="n">GPIO5</td><td>Chip select</td><td>Orange</td></tr>
-    <tr><td class="n">RST</td><td class="n">GPIO4</td><td>Reset</td><td>Purple</td></tr>
+    <tr><td class="n">RST</td><td class="n">GPIO4</td><td>Reset (may be marked RES)</td><td>Purple</td></tr>
   </tbody>
 </table>
+</div>
+
+<div class="card note">
+  <h3>No BLK means the backlight is always on</h3>
+  <p>The 7-pin boards wire the backlight to VCC on the module, so there is no pin for it and
+  nothing to connect. That is one wire fewer, and one thing you cannot change later: the screen
+  runs at full brightness whenever it is powered. Six of them in a dark room is brighter than it
+  sounds.</p>
+  <p>If that turns out to be too much, the display driver has no brightness register, so the fix
+  is either to dim the image in the firmware — draw the photo darker — or to buy the 8-pin
+  variant, which brings BLK out so it can be tied to a PWM pin.</p>
 </div>
 
 <p>GPIO2 and GPIO5 are boot strapping pins. The display's inputs are high impedance so this
