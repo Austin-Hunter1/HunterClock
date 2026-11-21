@@ -1,6 +1,6 @@
 # Ambigram clock hands — print these
 
-Six hands, each shaped like one person's name, generated from `cad/ambigrams/`
+Six identical hands, each carrying one person's name, generated from `cad/ambigrams/`
 by `build_hands.py`. **Built for option D** (off-axis motors driving the tubes
 with belts) and sized to the measured dial.
 
@@ -15,20 +15,20 @@ common beds are not.
 
 | File | Size | Contains |
 |---|---|---|
-| `print-plate-mk4-1of2-halo.stl` | 172 × 162 mm, 33 cm³ | Becky, Evan, Elijah + 3 bezels |
-| `print-plate-mk4-2of2-halo.stl` | 172 × 177 mm, 37 cm³ | Caleb, Austin, Micah + 3 bezels |
+| `print-plate-mk4-1of2-spear.stl` | 172 × 126 mm, 30 cm³ | Becky, Evan, Elijah + 3 bezels |
+| `print-plate-mk4-2of2-spear.stl` | 172 × 126 mm, 30 cm³ | Caleb, Austin, Micah + 3 bezels |
 
-Also as `.3mf` and `.step`, and in `-plaque` if you want that style. **The two
+Also as `.3mf` and `.step`, and in `-halo` or `-plaque` for the older shapes. **The two
 plates together are the whole front of the clock**: all six hands and all six
 display bezels, 12 parts, nothing else to print and nothing to order twice.
 
 Everything sits flat on the bed and nothing overhangs, so no supports.
-87 g of PLA if it were printed solid; a normal infill is well under that.
+61 cm³ of PLA if it were printed solid; a normal infill is well under that.
 
 Rebuild them with:
 
 ```
-python build_hands.py --preset option-d --style halo --plate \
+python build_hands.py --preset option-d --style spear --plate \
     --bed 250 210 --tag mk4 \
     --extra cad/bezels/bezel-ornate.step --extra-count 6
 ```
@@ -120,3 +120,29 @@ and refuses a mesh that is not watertight. That last check exists because it
 caught a real defect: two letter pieces touching at exactly one point extrude
 into an edge shared by four faces, and every in-memory check passed happily
 while the exported mesh was unprintable.
+
+## The shape
+
+Every hand is the same: a **15 mm wide blade, 115 mm from the axis, ending in
+a point**. The name stands 0.6 mm proud of it at a 12 mm cap height, the same
+height on all six, set near the tip where it is clear of the hub.
+
+Three things follow from making them identical.
+
+* **The tips all read on the same scale.** With the old staggered 85–115 mm
+  radii each hand pointed at a different radius, which is fine for telling
+  them apart and wrong for a dial. Now every tip lands on the chapter ring.
+* **Nothing got longer.** 115 mm was already the longest of the option-D
+  radii, so the tube stack carries no load it was not sized for. The hands
+  all weigh 5.2–5.3 g, where they used to run 4.2 to 9.7.
+* **Two hands close together now hide each other.** They are the same
+  silhouette at the same radius, 3.5 mm apart in z, so within about 8 degrees
+  the front one covers the one behind. The names are the only thing that
+  distinguishes them, and they sit at the same radius too. If that turns out
+  to matter, staggering the name along the blade by level fixes it without
+  changing the outline.
+
+The older shapes are still there: `--style halo` makes the hand's outline the
+word itself, and `--style plaque` sets the word on a tapered nameplate sized
+to it. Neither has a consistent width or length.
+

@@ -77,6 +77,17 @@ HALO_MIN = 1.0
 #: something to hold and somewhere to put a grub screw.
 HUB_OD_MIN = 9.0
 
+#: The ``spear`` hand: every hand the same width, the same length, and ending
+#: in a point. The width is what the lettering can live on -- a name set
+#: across a 15 mm blade leaves 11.6 mm of cap height, and the thinnest stroke
+#: in these ambigrams then lands just above the printable minimum. The length
+#: is the longest of the option-D radii, so nothing grows past a tip radius
+#: the tube stack has already been sized for.
+SPEAR_W = 15.0
+SPEAR_TIP_R = 115.0
+SPEAR_POINT = 24.0
+SPEAR_MARGIN = 1.7
+
 
 @dataclass
 class HandSpec:
@@ -402,7 +413,36 @@ def place_word(
     return _as_multipolygon(placed), scale
 
 
-def hub_plate(spec: HandSpec, *, grub_screw: bool) -> MultiPolygon:
+def place_word_tall(
+    geometry: MultiPolygon, *, height: float, outer_x: float
+) -> tuple[MultiPolygon, float]:
+    """Scale the artwork to a fixed cap height and hang it off ``outer_x``.
+
+    :func:`place_word` scales by width, which is right when the blade is sized
+    to the word. The spear blade is the other way round: its width is fixed,
+    so the word is scaled by height and its length falls out of its own
+    proportions. A short name is short; it is not blown up to fill the hand.
+    """
+    minx, miny, maxx, maxy = geometry.bounds
+    if maxy - miny <= 0:
+        raise RuntimeError("artwork has no height")
+    scale = height / (maxy - miny)
+    placed = affinity.scale(geometry, xfact=scale, yfact=scale, origin=(minx, miny))
+    minx, miny, maxx, maxy = placed.bounds
+    placed = affinity.translate(placed, xoff=outer_x - maxx, yoff=-(miny + maxy) / 2.0)
+    return _as_multipolygon(placed), scale
+
+
+def spear_plate(tip_r: float) -> Polygon:
+    """The blade: a constant-width bar to the shoulder, then a point."""
+    half = SPEAR_W / 2.0
+    shoulder = tip_r - SPEAR_POINT
+    return Polygon([
+        (-half, -half), (-half, half), (shoulder, half), (tip_r, 0.0), (shoulder, -half),
+    ])
+
+
+def hub_plate(spec: HandSpec, *, grub_screw: bool, od: float | None = None) -> MultiPolygon:
     """The hub disc, with an optional in-plane boss for a grub screw.
 
     The boss is radial rather than axial on purpose.  There is only 1.0 mm
@@ -410,13 +450,14 @@ def hub_plate(spec: HandSpec, *, grub_screw: bool) -> MultiPolygon:
     boss would foul its neighbour; a boss in the plane of the hand costs
     nothing.
     """
-    disc = Point(0, 0).buffer(spec.hub_od / 2.0, quad_segs=64)
+    hub_od = spec.hub_od if od is None else od
+    disc = Point(0, 0).buffer(hub_od / 2.0, quad_segs=64)
     if not grub_screw:
         return _as_multipolygon(disc)
     # A tab hanging off the hub at 90 degrees to the hand, so it never sits
     # under the word.
-    tab_w = max(spec.hub_od * 0.55, 5.0)
-    tab_r = spec.hub_od / 2.0 + 3.2
+    tab_w = max(hub_od * 0.55, 5.0)
+    tab_r = hub_od / 2.0 + 3.2
     tab = Polygon(
         [(-tab_w / 2, 0), (tab_w / 2, 0), (tab_w / 2, -tab_r), (-tab_w / 2, -tab_r)]
     )
@@ -511,6 +552,9 @@ def build_hand(
     """
     art = trace_artwork(ART_DIR / spec.artwork)
     merge_px = merge_offset(art)
+    # Every spear is the same length, whatever the level.
+    target_tip = SPEAR_TIP_R if style == "spear" else spec.tip_r
+    hub_od = SPEAR_W if style == "spear" else spec.hub_od
 
     # The halo and the scale depend on each other: a bigger halo leaves less
     # room for the word, which shrinks the scale, which shrinks the gaps the
@@ -520,34 +564,48 @@ def build_hand(
     #   halo = k * (span - halo) + bridge,  k = merge_px / width_px
     #   halo = (k * span + bridge) / (1 + k)
     width_px = art.bounds[2] - art.bounds[0]
-    inner_r = spec.tip_r - word_fraction * spec.tip_r
-    span = spec.tip_r - inner_r
+    inner_r = target_tip - word_fraction * target_tip
+    span = target_tip - inner_r
     k = merge_px / width_px
     if halo is None:
         halo = max((k * span + HALO_BRIDGE) / (1 + k), HALO_MIN)
     tip_inset = halo if style == "halo" else margin * 1.6
-    # What has to land on the design radius is the *furthest point from the hub*,
-    # and on a word that is 25 mm tall that is a corner, not the tip of the last
-    # letter. Solve for it: place the word, measure the real maximum radius,
-    # shrink, repeat. Two or three passes is plenty.
-    outer_r = spec.tip_r - tip_inset
-    word = scale = outline = None
-    for _ in range(8):
-        word, scale = place_word(art, inner_r=inner_r, outer_r=outer_r)
-        outline = (
-            word.buffer(halo, quad_segs=16, join_style=1)
-            if style == "halo"
-            else _plaque_plate(spec, word, inner_r=inner_r, margin=margin)
+    outer_r = target_tip - tip_inset
+
+    if style == "spear":
+        # Nothing to solve: the blade is a fixed shape and the word is set to
+        # a fixed cap height inside it, so the word's length follows from its
+        # own proportions instead of the blade following the word.
+        word, scale = place_word_tall(
+            art, height=SPEAR_W - 2 * SPEAR_MARGIN,
+            outer_x=target_tip - SPEAR_POINT - SPEAR_MARGIN,
         )
-        reach = _max_radius(outline)
-        if abs(reach - spec.tip_r) <= 0.05:
-            break
-        outer_r = inner_r + (outer_r - inner_r) * (spec.tip_r / reach)
+        outline = spear_plate(target_tip)
+    else:
+        # What has to land on the design radius is the *furthest point from the
+        # hub*, and on a word 25 mm tall that is a corner, not the tip of the
+        # last letter. Solve for it: place the word, measure the real maximum
+        # radius, shrink, repeat. Two or three passes is plenty.
+        word = scale = outline = None
+        for _ in range(8):
+            word, scale = place_word(art, inner_r=inner_r, outer_r=outer_r)
+            outline = (
+                word.buffer(halo, quad_segs=16, join_style=1)
+                if style == "halo"
+                else _plaque_plate(spec, word, inner_r=inner_r, margin=margin)
+            )
+            reach = _max_radius(outline)
+            if abs(reach - target_tip) <= 0.05:
+                break
+            outer_r = inner_r + (outer_r - inner_r) * (target_tip / reach)
+
     stroke_mm = min_stroke(word, limit=20.0)
     minx, miny, maxx, maxy = word.bounds
-    hub = hub_plate(spec, grub_screw=grub_screw)
+    hub = hub_plate(spec, grub_screw=grub_screw, od=hub_od)
 
-    if style == "halo":
+    if style == "spear":
+        body = unary_union([outline, hub])
+    elif style == "halo":
         # Grow the word until the loose pieces touch, then use that as the
         # blade.  The relief on top is the word itself, so the outline reads as
         # the name from across the room and the letters read up close.
@@ -574,7 +632,7 @@ def build_hand(
     blade = body.difference(bore)
     screw_d = 3.0 if spec.mount_od >= 6.0 else 2.0
     if grub_screw:
-        hole = Point(0, -(spec.hub_od / 2.0 + 1.4)).buffer(screw_d / 2.0, quad_segs=32)
+        hole = Point(0, -(hub_od / 2.0 + 1.4)).buffer(screw_d / 2.0, quad_segs=32)
         blade = blade.difference(hole)
     blade = _as_multipolygon(blade if blade.is_valid else blade.buffer(0))
 
@@ -592,9 +650,9 @@ def build_hand(
             f"{blade_stroke:.2f} mm, under the {MIN_FEATURE} mm printable minimum. "
             f"Raise --halo or --word-fraction."
         )
-    if abs(achieved_tip - spec.tip_r) > 0.6:
+    if abs(achieved_tip - target_tip) > 0.6:
         raise RuntimeError(
-            f"{spec.person}: tip radius is {achieved_tip:.2f} mm, not {spec.tip_r} mm"
+            f"{spec.person}: tip radius is {achieved_tip:.2f} mm, not {target_tip} mm"
         )
 
     report = {
@@ -611,10 +669,11 @@ def build_hand(
         "halo_needed_mm": merge_px * scale,
         "blade_area_mm2": blade.area,
         "bore_mm": spec.bore,
-        "hub_od_mm": spec.hub_od,
+        "hub_od_mm": hub_od,
         "grip_length_mm": HAND_T,
         "screw": f"M{int(screw_d)}" if grub_screw else None,
         "tip_r_mm": outer_r,
+        "blade_width_mm": SPEAR_W if style == "spear" else None,
     }
     hand = Hand(spec=spec, blade=blade, word=word, style=style, scale=scale, report=report)
     _measure_balance(hand)
@@ -1073,7 +1132,9 @@ def main(argv: list[str] | None = None) -> int:
             "  plaque  the word in relief on a tapered nameplate (strongest)\n"
         ),
     )
-    parser.add_argument("--style", choices=("halo", "plaque", "both"), default="both")
+    parser.add_argument(
+        "--style", choices=("halo", "plaque", "spear", "both"), default="both"
+    )
     parser.add_argument("--only", default=None, help="one person, while iterating")
     parser.add_argument("--out", type=Path, default=OUT_DIR)
     parser.add_argument("--svg-only", action="store_true", help="skip STEP and STL")

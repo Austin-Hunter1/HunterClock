@@ -6,8 +6,8 @@ Everything needed to fill in the intake form, and the two files to upload.
 
 | File | Size | Contains |
 |---|---|---|
-| `cad/hands/print-plate-mk4-1of2-halo.stl` | 172.5 × 162.2 × 7.5 mm | 3 clock hands + 3 bezels |
-| `cad/hands/print-plate-mk4-2of2-halo.stl` | 172.5 × 176.8 × 7.5 mm | 3 clock hands + 3 bezels |
+| `cad/hands/print-plate-mk4-1of2-spear.stl` | 172.5 × 126.1 × 7.5 mm | 3 clock hands + 3 bezels |
+| `cad/hands/print-plate-mk4-2of2-spear.stl` | 172.5 × 126.1 × 7.5 mm | 3 clock hands + 3 bezels |
 
 Between them that is the whole front of the clock — 12 parts, nothing else to
 print. STL rather than 3MF because the form asks for a file a service can read
@@ -31,7 +31,7 @@ and STL is read by everything.
 
 Say 100% and nothing else. STL carries no units, so a slicer has to assume
 them, and the usual failure is a file read as inches and scaled by 25.4. The
-check that catches it: **plate 1 must measure 172.5 mm across the bed.** If it
+check that catches it: **each plate must measure 172.5 mm across the bed.** If it
 comes up as 6.8 or 4382, the units were guessed wrong.
 
 These are functional parts that have to fit real hardware, so a "make it fit
@@ -43,7 +43,7 @@ the plate" rescale would ruin them.
 > round display bezels.
 >
 > Print at 100%. The files are in millimetres and must not be rescaled; as a
-> check, plate 1 should measure 172.5 mm across. Both plates are laid flat and
+> check, each plate should measure 172.5 mm across. Both plates are laid flat and
 > need no supports anywhere. 0.2 mm layers, black PLA, standard infill. The
 > parts get painted afterwards, so surface finish does not matter.
 >

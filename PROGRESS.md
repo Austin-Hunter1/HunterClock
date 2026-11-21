@@ -281,3 +281,11 @@ hardware was connected in the session that wrote it. Specifically:
   53.5 mm bezel — so the renders add a 75 mm wing each side. And ordinary
   distances bunch: 2 to 14 km puts four hands inside a 70 degree arc, where
   they overlap enough to be hard to read.
+* **Push 13** — a third hand style, `spear`, and the new default: every hand
+  15 mm wide, 115 mm long and pointed, with the name in relief at a 12 mm cap
+  height. The blade no longer follows the word; the word is set to a fixed
+  height inside a fixed blade, so a short name stays short instead of being
+  blown up to fill the hand. Measured rather than assumed: the thinnest
+  letter stroke is 1.82 mm, well over the 0.8 mm printable minimum, and the
+  hands now weigh 5.2–5.3 g each where they ranged 4.2 to 9.7. The MK4 plates
+  shrank to 172 × 126 mm.

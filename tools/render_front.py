@@ -67,8 +67,8 @@ SCREEN_COLUMNS = {-1: ("Becky", "Elijah", "Caleb"), +1: ("Austin", "Micah", "Eva
 #: Hub level order, which is the order the firmware uses for channels 0-5.
 LEVELS = ("Becky", "Evan", "Elijah", "Caleb", "Austin", "Micah")
 HAND_FILE = {
-    "Becky": "1-becky-halo", "Evan": "2-evan-halo", "Elijah": "3-elijah-halo",
-    "Caleb": "4-caleb-halo", "Austin": "5-austin-halo", "Micah": "6-micah-halo",
+    "Becky": "1-becky-spear", "Evan": "2-evan-spear", "Elijah": "3-elijah-spear",
+    "Caleb": "4-caleb-spear", "Austin": "5-austin-spear", "Micah": "6-micah-spear",
 }
 #: The hands read as gilt brass, with the raised name picked out. The accent
 #: is per person by default: one colour for all six would be handsome and
