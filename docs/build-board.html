@@ -382,6 +382,13 @@ most of the connections are made by the board itself.</p>
 
 <h2 id="logic">Logic board (the Pico)</h2>
 
+<p><strong>Leave the 3-pin debug header off.</strong> The three pads on the Pico's short edge
+opposite the USB socket are SWCLK, GND and SWDIO, and nothing in this build uses them: the Pico
+talks to the Pi over USB, MicroPython is installed by holding BOOTSEL and dropping a .uf2 on the
+drive that appears, and the firmware is copied with <code>mpremote</code>. SWD is only for
+step-through debugging with a second Pico as a probe. Soldering it also puts a third row of pins
+under a board that has no strip to take them.</p>
+
 <p>Solder the two 20-pin strips into the Pico so the pins point down, then mount it across the
 gutter with the <strong>USB socket at row 1</strong>. Its pin rows are 0.7&nbsp;in apart, so the
 left row lands in column <code>b</code> and the right row in column <code>g</code>.</p>
