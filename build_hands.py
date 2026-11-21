@@ -91,11 +91,31 @@ HUB_OD_MIN = 9.0
 #: margin, used on all six so the widths match.
 POINT_CAP = 18.0
 POINT_HALO = 1.8
-POINT_TAPER = 30.0
 POINT_TIP_R = 115.0
 POINT_OVERLAP = 2.5
-#: Half-width of the stem between the hub and the word.
+#: Half-width of the short stem that ties the boss to the word.
 POINT_STEM = 4.0
+#: Round boss at the tail, the same on all six. It has to clear the largest
+#: bore with wall left over (7.94 + 0.15 + 2 x 2.6 = 13.3), and it sits
+#: narrower than the word band so the word stays the widest thing on the hand.
+POINT_BOSS = 18.0
+#: Gap between the boss and the start of the word, bridged by the collar.
+POINT_COLLAR = 2.0
+
+#: The neck, as (fraction along the taper, half-width as a fraction of the
+#: word band's half-width). Taken off an antique serpentine hand: the blade
+#: drops away from the ornament to a waist, flares once into a barb, then
+#: runs out long and fine. A plain curve to a point reads as a dart; this
+#: reads as a clock hand.
+#:
+#: It stops at 1.0 mm wide rather than a true point. Steel hands are blanked
+#: and can be needle-sharp; a 0.4 mm nozzle cannot build a knife edge, and a
+#: tip under two extrusions wide prints as nothing at all.
+POINT_NECK = (
+    (0.00, 1.00), (0.05, 0.66), (0.11, 0.38), (0.18, 0.23), (0.28, 0.20),
+    (0.35, 0.30), (0.42, 0.42), (0.48, 0.28), (0.57, 0.18), (0.68, 0.13),
+    (0.80, 0.09), (0.91, 0.06), (1.00, 0.046),
+)
 
 
 @dataclass
@@ -423,7 +443,8 @@ def place_word(
 
 
 def place_word_tall(
-    geometry: MultiPolygon, *, height: float, outer_x: float
+    geometry: MultiPolygon, *, height: float,
+    outer_x: float | None = None, inner_x: float | None = None,
 ) -> tuple[MultiPolygon, float]:
     """Scale the artwork to a fixed cap height and hang it off ``outer_x``.
 
@@ -438,7 +459,8 @@ def place_word_tall(
     scale = height / (maxy - miny)
     placed = affinity.scale(geometry, xfact=scale, yfact=scale, origin=(minx, miny))
     minx, miny, maxx, maxy = placed.bounds
-    placed = affinity.translate(placed, xoff=outer_x - maxx, yoff=-(miny + maxy) / 2.0)
+    shift = (inner_x - minx) if inner_x is not None else (outer_x - maxx)
+    placed = affinity.translate(placed, xoff=shift, yoff=-(miny + maxy) / 2.0)
     return _as_multipolygon(placed), scale
 
 
@@ -465,31 +487,40 @@ def point_stem(spec: HandSpec, body: MultiPolygon, *, overlap: float = 3.0) -> P
 
 
 def point_taper(merged: MultiPolygon, tip_r: float) -> Polygon:
-    """The tapered point, from the outer end of the word out to ``tip_r``.
+    """The serpentine neck, from the outer end of the word out to ``tip_r``.
 
     It starts a few millimetres back inside the word rather than at its edge,
-    because a word's last letter can end in a thin stroke and a taper that
+    because a word's last letter can end in a thin stroke and a neck that
     merely touched it would be a hinge. The overlap is checked like every
     other join, by ``min_bridge`` on the finished blade.
     """
     half = POINT_CAP / 2.0 + POINT_HALO
     join = merged.bounds[2] - POINT_OVERLAP
-    # Concave rather than straight. A straight triangle off a 21.6 mm blade
-    # has a 20 degree half-angle and reads as an arrowhead; curving the sides
-    # in narrows it immediately and leaves a long thin point, which is both
-    # better looking and easier to read against a chapter ring.
-    steps = 20
-    upper, lower = [], []
-    for index in range(steps + 1):
-        fraction = index / steps
-        x = join + (tip_r - join) * fraction
-        y = half * (1.0 - fraction) ** 1.5
-        upper.append((x, y))
-        lower.append((x, -y))
+    span = tip_r - join
+    upper = [(join + span * f, half * w) for f, w in POINT_NECK]
+    lower = [(x, -y) for x, y in upper]
     return Polygon(upper + lower[::-1])
 
 
-def hub_plate(spec: HandSpec, *, grub_screw: bool, od: float | None = None) -> MultiPolygon:
+def point_collar(inner_r: float, outer_r: float) -> Polygon:
+    """The little barbed step between the boss and the word.
+
+    On the hands this is drawn from, the boss never runs straight into the
+    ornament: there is always a short waisted collar with a spur either side.
+    It is also useful, because it is what actually ties the word to the boss
+    when a name starts on a thin stroke.
+    """
+    mid = (inner_r + outer_r) / 2.0
+    return Polygon([
+        (inner_r, -2.6), (inner_r, 2.6),
+        (mid, 4.4), (outer_r, 3.0),
+        (outer_r + 1.2, 1.6), (outer_r + 1.2, -1.6),
+        (outer_r, -3.0), (mid, -4.4),
+    ])
+
+
+def hub_plate(spec: HandSpec, *, grub_screw: bool, od: float | None = None,
+              tail: bool = False) -> MultiPolygon:
     """The hub disc, with an optional in-plane boss for a grub screw.
 
     The boss is radial rather than axial on purpose.  There is only 1.0 mm
@@ -505,9 +536,16 @@ def hub_plate(spec: HandSpec, *, grub_screw: bool, od: float | None = None) -> M
     # under the word.
     tab_w = max(hub_od * 0.55, 5.0)
     tab_r = hub_od / 2.0 + 3.2
-    tab = Polygon(
-        [(-tab_w / 2, 0), (tab_w / 2, 0), (tab_w / 2, -tab_r), (-tab_w / 2, -tab_r)]
-    )
+    if tail:
+        # Straight out behind the boss, where it reads as the tail of the hand
+        # instead of a lump on one side of it.
+        tab = Polygon(
+            [(0, -tab_w / 2), (0, tab_w / 2), (-tab_r, tab_w / 2), (-tab_r, -tab_w / 2)]
+        )
+    else:
+        tab = Polygon(
+            [(-tab_w / 2, 0), (tab_w / 2, 0), (tab_w / 2, -tab_r), (-tab_w / 2, -tab_r)]
+        )
     return _as_multipolygon(unary_union([disc, tab]))
 
 
@@ -601,7 +639,7 @@ def build_hand(
     merge_px = merge_offset(art)
     # Every spear is the same length, whatever the level.
     target_tip = POINT_TIP_R if style == "pointed" else spec.tip_r
-    hub_od = spec.hub_od
+    hub_od = POINT_BOSS if style == "pointed" else spec.hub_od
 
     # The halo and the scale depend on each other: a bigger halo leaves less
     # room for the word, which shrinks the scale, which shrinks the gaps the
@@ -624,8 +662,13 @@ def build_hand(
         # fixed, and the word's length follows from its own proportions. The
         # taper takes up whatever is left over out to the tip.
         halo = POINT_HALO
+        # The word sits just outside the boss and the neck takes up the rest,
+        # so a short name gets a long neck. The other way round -- word out at
+        # the tip, stem at the hub -- put the ornament where an antique hand
+        # has its plain run and the plain run where the ornament belongs.
         word, scale = place_word_tall(
-            art, height=POINT_CAP, outer_x=target_tip - POINT_TAPER - POINT_HALO,
+            art, height=POINT_CAP,
+            inner_x=POINT_BOSS / 2.0 + POINT_COLLAR + halo,
         )
         merged = _as_multipolygon(word.buffer(halo, quad_segs=16, join_style=1))
         if len(merged.geoms) != 1:
@@ -654,11 +697,15 @@ def build_hand(
 
     stroke_mm = min_stroke(word, limit=20.0)
     minx, miny, maxx, maxy = word.bounds
-    hub = hub_plate(spec, grub_screw=grub_screw, od=hub_od)
+    hub = hub_plate(spec, grub_screw=grub_screw, od=hub_od, tail=style == "pointed")
 
     if style == "pointed":
         plate = _as_multipolygon(outline)
-        body = unary_union([plate, hub, point_stem(spec, plate)])
+        body = unary_union([
+            plate, hub,
+            point_collar(POINT_BOSS / 2.0 - 1.0, POINT_BOSS / 2.0 + POINT_COLLAR + 1.0),
+            point_stem(spec, plate),
+        ])
     elif style == "halo":
         # Grow the word until the loose pieces touch, then use that as the
         # blade.  The relief on top is the word itself, so the outline reads as
@@ -686,7 +733,9 @@ def build_hand(
     blade = body.difference(bore)
     screw_d = 3.0 if spec.mount_od >= 6.0 else 2.0
     if grub_screw:
-        hole = Point(0, -(hub_od / 2.0 + 1.4)).buffer(screw_d / 2.0, quad_segs=32)
+        centre = ((-(hub_od / 2.0 + 1.4), 0.0) if style == "pointed"
+                  else (0.0, -(hub_od / 2.0 + 1.4)))
+        hole = Point(*centre).buffer(screw_d / 2.0, quad_segs=32)
         blade = blade.difference(hole)
     blade = _as_multipolygon(blade if blade.is_valid else blade.buffer(0))
 

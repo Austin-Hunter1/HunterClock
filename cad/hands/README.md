@@ -15,7 +15,7 @@ common beds are not.
 
 | File | Size | Contains |
 |---|---|---|
-| `print-plate-mk4-1of2-pointed.stl` | 172 × 136 mm, 30 cm³ | Becky, Evan, Elijah + 3 bezels |
+| `print-plate-mk4-1of2-pointed.stl` | 172 × 136 mm, 29 cm³ | Becky, Evan, Elijah + 3 bezels |
 | `print-plate-mk4-2of2-pointed.stl` | 172 × 136 mm, 28 cm³ | Caleb, Austin, Micah + 3 bezels |
 
 Also as `.3mf` and `.step`, and in `-halo` or `-plaque` for the older shapes. **The two
@@ -123,37 +123,48 @@ while the exported mesh was unprintable.
 
 ## The shape
 
-The hand's own outline is the word, as before — but regularised so the six
-match.
+Drawn from an antique serpentine clock hand: a round boss at the tail, a
+pierced ornament, then a long waisted neck that flares once into a barb and
+runs out fine. The difference is what the ornament is — on the original it is
+scrollwork and pierced circles, here it is the person's name, which pierces
+itself through the letter counters.
 
-* **One letter height, 18 mm, on all six.** The word is no longer stretched to
-  fill the hand, so "Mom" is not set in letters half the height of "Elijah".
-* **One width, 21.6 mm.** It follows from the letter height plus a halo, and
-  the halo is the most any of the six needs to fuse its loose pieces (Caleb,
-  1.54 mm) rounded up, used on all six so the widths match exactly.
-* **One length, 115 mm**, ending in a point. With the letter height fixed the
-  words come out different lengths — 74 mm for "Mom", 38 mm for "Dad" — so a
-  **tapered point** carries each one out to the same tip radius. A short name
-  gets a long point and a long name a short one.
+Along the hand, from the arbor out:
 
-The point is concave rather than a straight triangle. Straight off a 21.6 mm
-blade is a 20° half-angle, which reads as an arrowhead; curving the sides in
-narrows it at once and leaves a long thin tip, which is easier to read against
-the chapter ring.
+| | |
+|---|---|
+| **Boss** | 18 mm disc, the same on all six, with the grub-screw tab straight out behind it as a tail |
+| **Collar** | a short barbed step, which is also what ties the word to the boss when a name starts on a thin stroke |
+| **The name** | 18 mm cap height on all six, so the hand is 21.6 mm wide on all six |
+| **Neck** | from the end of the word to the tip: a waist, one barb, then a long fine run |
+| **Tip** | 115 mm from the axis, the same on all six |
 
-The stem between hub and word is deliberately slim. The first attempt reused
-the halo style's neck, which widens until it meets the word; at a fixed letter
-height the short names sit far out, and a full-width neck turned the whole
-hand into a solid arrow with the letters stranded at the end of it.
+Three things are deliberate.
 
-Two things follow from making them match.
+* **One letter height, so one width.** The word is not stretched to fill the
+  hand, so "Mom" is not set in letters half the height of "Elijah". The width
+  follows: 18 mm of cap plus a halo of 1.8 mm, the halo being the most any of
+  the six needs to fuse its loose pieces (Caleb, 1.54 mm) rounded up.
+* **One length, with the neck taking up the slack.** At a fixed cap height the
+  words come out 38 to 74 mm long, so a short name gets a long neck and a long
+  name a short one, and every tip still lands at 115 mm.
+* **The tip stops at 1.0 mm wide.** Steel hands are blanked and can be
+  needle-sharp. A 0.4 mm nozzle cannot build a knife edge, and anything under
+  two extrusions wide prints as nothing at all.
+
+Two consequences worth knowing.
 
 * **The tips all read on the same scale.** With the old staggered 85–115 mm
   radii each hand pointed at a different radius. Now every tip lands on the
   chapter ring.
-* **Nothing got longer.** 115 mm was already the longest of the option-D
-  radii, so no tube carries a hand it was not sized for. The hands weigh
-  4.4–6.3 g, where they used to run 4.2 to 9.7.
+* **The names bunch near the hub.** Putting the ornament inboard is what the
+  antique shape asks for, and it means two hands within about 25 degrees
+  overlap their words. The earlier version had the word out at the tip, which
+  separated them better and looked wrong.
+
+Nothing got longer: 115 mm was already the longest of the option-D radii, so
+no tube carries a hand it was not sized for. The hands weigh 4.2–6.2 g, where
+they used to run 4.2 to 9.7.
 
 `--style halo` and `--style plaque` still build the older shapes, neither of
 which has a consistent width, length or letter height.

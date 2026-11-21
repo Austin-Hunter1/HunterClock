@@ -294,3 +294,10 @@ hardware was connected in the session that wrote it. Specifically:
   regularises it instead — one letter height (18 mm), one width (21.6 mm),
   one length (115 mm), and a concave tapered point taking up whatever the
   word does not. Spear is gone.
+* **Push 15** — the hands redrawn from an antique serpentine hand Austin sent:
+  round boss with the grub tab behind it as a tail, a barbed collar, the name
+  as the pierced ornament, then a waisted neck with one barb running out to a
+  fine tip. The ornament moved inboard, which is where that shape puts it; the
+  earlier version had the word at the tip and the plain run at the hub, which
+  was backwards. Tip stops at 1.0 mm wide because a nozzle cannot print a
+  knife edge.
