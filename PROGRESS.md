@@ -289,3 +289,8 @@ hardware was connected in the session that wrote it. Specifically:
   letter stroke is 1.82 mm, well over the 0.8 mm printable minimum, and the
   hands now weigh 5.2–5.3 g each where they ranged 4.2 to 9.7. The MK4 plates
   shrank to 172 × 126 mm.
+* **Push 14** — the spear was wrong: a plain bar loses the thing that makes
+  these hands worth making. `pointed` keeps the word as the outline and
+  regularises it instead — one letter height (18 mm), one width (21.6 mm),
+  one length (115 mm), and a concave tapered point taking up whatever the
+  word does not. Spear is gone.

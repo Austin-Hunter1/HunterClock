@@ -77,16 +77,25 @@ HALO_MIN = 1.0
 #: something to hold and somewhere to put a grub screw.
 HUB_OD_MIN = 9.0
 
-#: The ``spear`` hand: every hand the same width, the same length, and ending
-#: in a point. The width is what the lettering can live on -- a name set
-#: across a 15 mm blade leaves 11.6 mm of cap height, and the thinnest stroke
-#: in these ambigrams then lands just above the printable minimum. The length
-#: is the longest of the option-D radii, so nothing grows past a tip radius
-#: the tube stack has already been sized for.
-SPEAR_W = 15.0
-SPEAR_TIP_R = 115.0
-SPEAR_POINT = 24.0
-SPEAR_MARGIN = 1.7
+#: The ``pointed`` hand: the halo shape -- the word's own silhouette is the
+#: blade -- but regularised. Every hand gets the same letter height, so every
+#: hand is the same width; the words then come out different lengths, and a
+#: taper to a point carries each one out to the same tip radius. A short name
+#: gets a long point and a long name a short one, which is what keeps the six
+#: the same size without stretching anybody's letters.
+#:
+#: 18 mm of cap height is set by the longest word relative to its height:
+#: "Mom" is 4.14 times as wide as it is tall, so at 18 mm it runs 74 mm and
+#: still leaves room for the hub, the taper and a join. The halo is the most
+#: any of the six needs to fuse its loose pieces (Caleb, 1.54 mm) plus a
+#: margin, used on all six so the widths match.
+POINT_CAP = 18.0
+POINT_HALO = 1.8
+POINT_TAPER = 30.0
+POINT_TIP_R = 115.0
+POINT_OVERLAP = 2.5
+#: Half-width of the stem between the hub and the word.
+POINT_STEM = 4.0
 
 
 @dataclass
@@ -433,13 +442,51 @@ def place_word_tall(
     return _as_multipolygon(placed), scale
 
 
-def spear_plate(tip_r: float) -> Polygon:
-    """The blade: a constant-width bar to the shoulder, then a point."""
-    half = SPEAR_W / 2.0
-    shoulder = tip_r - SPEAR_POINT
+def point_stem(spec: HandSpec, body: MultiPolygon, *, overlap: float = 3.0) -> Polygon:
+    """A slim wedge from the hub out to wherever the word starts.
+
+    :func:`neck` widens until it meets the word, which is right when the blade
+    is the word and wrong here: at a fixed cap height the short names sit far
+    out, and a full-width neck turned the whole hand into a solid arrow with
+    the letters lost at the end of it. This one stays narrow, so the word is
+    the widest thing on the hand and reads as the hand.
+    """
+    start = spec.hub_od / 2.0 - 0.5
+    root = max(spec.hub_od * 0.42, 3.0)
+    minx, _miny, maxx, _maxy = body.bounds
+    strip = body.intersection(
+        Polygon([(minx, -POINT_STEM), (maxx, -POINT_STEM),
+                 (maxx, POINT_STEM), (minx, POINT_STEM)])
+    )
+    join_x = (strip.bounds[0] if not strip.is_empty else body.centroid.x) + overlap
     return Polygon([
-        (-half, -half), (-half, half), (shoulder, half), (tip_r, 0.0), (shoulder, -half),
+        (start, -root), (start, root), (join_x, POINT_STEM), (join_x, -POINT_STEM),
     ])
+
+
+def point_taper(merged: MultiPolygon, tip_r: float) -> Polygon:
+    """The tapered point, from the outer end of the word out to ``tip_r``.
+
+    It starts a few millimetres back inside the word rather than at its edge,
+    because a word's last letter can end in a thin stroke and a taper that
+    merely touched it would be a hinge. The overlap is checked like every
+    other join, by ``min_bridge`` on the finished blade.
+    """
+    half = POINT_CAP / 2.0 + POINT_HALO
+    join = merged.bounds[2] - POINT_OVERLAP
+    # Concave rather than straight. A straight triangle off a 21.6 mm blade
+    # has a 20 degree half-angle and reads as an arrowhead; curving the sides
+    # in narrows it immediately and leaves a long thin point, which is both
+    # better looking and easier to read against a chapter ring.
+    steps = 20
+    upper, lower = [], []
+    for index in range(steps + 1):
+        fraction = index / steps
+        x = join + (tip_r - join) * fraction
+        y = half * (1.0 - fraction) ** 1.5
+        upper.append((x, y))
+        lower.append((x, -y))
+    return Polygon(upper + lower[::-1])
 
 
 def hub_plate(spec: HandSpec, *, grub_screw: bool, od: float | None = None) -> MultiPolygon:
@@ -553,8 +600,8 @@ def build_hand(
     art = trace_artwork(ART_DIR / spec.artwork)
     merge_px = merge_offset(art)
     # Every spear is the same length, whatever the level.
-    target_tip = SPEAR_TIP_R if style == "spear" else spec.tip_r
-    hub_od = SPEAR_W if style == "spear" else spec.hub_od
+    target_tip = POINT_TIP_R if style == "pointed" else spec.tip_r
+    hub_od = spec.hub_od
 
     # The halo and the scale depend on each other: a bigger halo leaves less
     # room for the word, which shrinks the scale, which shrinks the gaps the
@@ -572,15 +619,21 @@ def build_hand(
     tip_inset = halo if style == "halo" else margin * 1.6
     outer_r = target_tip - tip_inset
 
-    if style == "spear":
-        # Nothing to solve: the blade is a fixed shape and the word is set to
-        # a fixed cap height inside it, so the word's length follows from its
-        # own proportions instead of the blade following the word.
+    if style == "pointed":
+        # Nothing to solve here: the letter height is fixed, so the scale is
+        # fixed, and the word's length follows from its own proportions. The
+        # taper takes up whatever is left over out to the tip.
+        halo = POINT_HALO
         word, scale = place_word_tall(
-            art, height=SPEAR_W - 2 * SPEAR_MARGIN,
-            outer_x=target_tip - SPEAR_POINT - SPEAR_MARGIN,
+            art, height=POINT_CAP, outer_x=target_tip - POINT_TAPER - POINT_HALO,
         )
-        outline = spear_plate(target_tip)
+        merged = _as_multipolygon(word.buffer(halo, quad_segs=16, join_style=1))
+        if len(merged.geoms) != 1:
+            raise RuntimeError(
+                f"{spec.person}: a halo of {halo:.2f} mm leaves the word in "
+                f"{len(merged.geoms)} pieces at a {POINT_CAP} mm cap height"
+            )
+        outline = unary_union([merged, point_taper(merged, target_tip)])
     else:
         # What has to land on the design radius is the *furthest point from the
         # hub*, and on a word 25 mm tall that is a corner, not the tip of the
@@ -603,8 +656,9 @@ def build_hand(
     minx, miny, maxx, maxy = word.bounds
     hub = hub_plate(spec, grub_screw=grub_screw, od=hub_od)
 
-    if style == "spear":
-        body = unary_union([outline, hub])
+    if style == "pointed":
+        plate = _as_multipolygon(outline)
+        body = unary_union([plate, hub, point_stem(spec, plate)])
     elif style == "halo":
         # Grow the word until the loose pieces touch, then use that as the
         # blade.  The relief on top is the word itself, so the outline reads as
@@ -673,7 +727,7 @@ def build_hand(
         "grip_length_mm": HAND_T,
         "screw": f"M{int(screw_d)}" if grub_screw else None,
         "tip_r_mm": outer_r,
-        "blade_width_mm": SPEAR_W if style == "spear" else None,
+        "blade_width_mm": POINT_CAP + 2 * POINT_HALO if style == "pointed" else None,
     }
     hand = Hand(spec=spec, blade=blade, word=word, style=style, scale=scale, report=report)
     _measure_balance(hand)
@@ -1133,7 +1187,7 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
-        "--style", choices=("halo", "plaque", "spear", "both"), default="both"
+        "--style", choices=("halo", "plaque", "pointed", "both"), default="both"
     )
     parser.add_argument("--only", default=None, help="one person, while iterating")
     parser.add_argument("--out", type=Path, default=OUT_DIR)
