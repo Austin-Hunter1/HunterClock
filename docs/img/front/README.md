@@ -1,19 +1,40 @@
 # Front renders
 
-From `python tools/render_front.py`. Square on to the clock, the six hands at
-four sets of distances.
+From `python tools/render_front.py`. Square on to the clock, with the hands
+where `birthday_clock.m` puts them.
 
 | File | What |
 |---|---|
-| `front-all.png` | all four panels on one sheet |
+| `front-actual.png` | the real positions, from the MATLAB sim's six locations |
 | `front-all-home.png` | everyone home — six hands stacked at 12 o'clock |
 | `front-decades.png` | one hand per decade, so the log scale reads as angles |
-| `front-a-tuesday.png` | ordinary distances, 2–14 km |
-| `front-austin-away.png` | Austin in Boulder, everyone else home |
+| `front-all.png` | all three on one sheet |
 
 Built from the parts that exist: the measured `Clock_Face_1.3mf` dial plate,
 the six option-D hands, the six ornate bezels. The hood board and its opening
 are Caleb's measurements.
+
+## The positions
+
+`birthday_clock.m`'s own table, through `clockd.geo` — the same haversine and
+the same log map, so these are the angles that sim produces. Home is
+Minnetonka, MN.
+
+| | Where | Distance | Angle |
+|---|---|---|---|
+| Becky | Minnetonka High School, MN | 0 km | 0° |
+| Elijah | St Paul, MN | 33 km | 127° |
+| Caleb | Wheaton, IL | 552 km | 229° |
+| Austin | Boulder, CO | 1 107 km | 255° |
+| Micah | Corvallis, OR | 2 338 km | 282° |
+| Evan | Warsaw, Poland | 7 537 km | 325° |
+
+## Colour
+
+The hands are gilt with the raised name picked out in that person's colour.
+One accent colour for all six would be handsome and unreadable the moment two
+hands cross, so the accent is per person; `--accent "#1E2228"` forces a single
+colour. The dial is silvered so the gilt separates from it.
 
 ## What is assumed, not measured
 
@@ -26,5 +47,5 @@ are Caleb's measurements.
 * **The chapter ring.** The hardware plan calls for one machined for the log
   scale but does not draw it. These ticks are every 10 degrees with the five
   decades marked, which is the scale `clockd.geo` actually implements.
-* **The hand colours.** The hands print in black PLA. They are coloured per
-  person here only so six overlapping hands can be told apart.
+* **The finish.** The hands print in black PLA; the gilt and the accents are
+  what they would look like painted, not what comes off the printer.

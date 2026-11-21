@@ -70,7 +70,10 @@ HAND_FILE = {
     "Becky": "1-becky-halo", "Evan": "2-evan-halo", "Elijah": "3-elijah-halo",
     "Caleb": "4-caleb-halo", "Austin": "5-austin-halo", "Micah": "6-micah-halo",
 }
-#: Only so six overlapping hands can be told apart; they print black.
+#: The hands read as gilt brass, with the raised name picked out. The accent
+#: is per person by default: one colour for all six would be handsome and
+#: unreadable the moment two hands cross. ``--accent`` overrides it.
+GOLD = "#C69A2B"
 PERSON_RGB = {
     "Becky": "#4F7A4A", "Evan": "#5B5EA6", "Elijah": "#3E6470",
     "Caleb": "#A8672B", "Austin": "#8A4B6B", "Micah": "#B0562A",
@@ -78,15 +81,18 @@ PERSON_RGB = {
 
 PLATE_TOP = 2.4
 HAND_GAP = 3.5
+#: The plate is 2.5 mm and the name stands 0.6 mm proud of it, so faces above
+#: this are the lettering and get the accent.
+HAND_T = 2.5
 WALNUT = "#5E3B21"
 TRUNK = "#53341D"
-DIAL = "#C8B98F"
+DIAL = "#CFC8B0"
 BRASS = "#B08A3C"
 GLASS = "#16181C"
 INTERIOR = "#1A140E"
-DISC = "#D3C49C"
+DISC = "#DBD5C1"
 WING = "#6B462A"
-ENGRAVE = "#6E6042"
+ENGRAVE = "#595242"
 
 #: The chapter ring. One decade of distance is 360/log10(pi*6371) = 83.7
 #: degrees, and the ring is machined for that scale rather than for hours.
@@ -94,28 +100,38 @@ RING_IN, RING_OUT = 110.0, 122.0
 DECADE_KM = (1.0, 10.0, 100.0, 1_000.0, 10_000.0)
 DECADE_LABEL = ("1 km", "10", "100", "1 000", "10 000")
 
-#: The positions to render. Distances in km, per person.
-VIEWS: list[tuple[str, str, dict[str, float]]] = [
-    (
-        "all-home", "Everyone home",
-        dict.fromkeys(LEVELS, 0.0),
-    ),
-    (
-        "decades", "One hand per decade",
-        {"Becky": 1.0, "Evan": 10.0, "Elijah": 100.0,
-         "Caleb": 1_000.0, "Austin": 10_000.0, "Micah": 3_000.0},
-    ),
-    (
-        "a-tuesday", "A normal Tuesday",
-        {"Becky": 0.0, "Evan": 14.0, "Elijah": 4.0,
-         "Caleb": 2.0, "Austin": 1_450.0, "Micah": 6.0},
-    ),
-    (
-        "austin-away", "Austin in Boulder, everyone else home",
-        {"Becky": 0.0, "Evan": 0.0, "Elijah": 0.0,
-         "Caleb": 0.0, "Austin": 1_450.0, "Micah": 0.0},
-    ),
-]
+#: Home and the six real locations, from ``birthday_clock.m``.
+HOME = (44.9109, -93.5017)  # Minnetonka, MN
+WHERE = {
+    "Becky": (44.9109, -93.5017),    # Minnetonka High School, MN
+    "Evan": (52.2297, 21.0122),      # Warsaw, Poland
+    "Elijah": (44.9537, -93.0900),   # St Paul, MN
+    "Caleb": (41.8661, -88.1070),    # Wheaton, IL
+    "Austin": (40.0150, -105.2705),  # Boulder, CO
+    "Micah": (44.5646, -123.2620),   # Corvallis, OR
+}
+
+
+def views() -> list[tuple[str, str, dict[str, float]]]:
+    """The positions to render, as distances in km per person.
+
+    The first is the real one: the same six places ``birthday_clock.m`` plots,
+    through the same haversine and the same log map, so the angles here are
+    the angles that sim produces. The other two are there to read it by.
+    """
+    from clockd import geo
+
+    actual = {
+        person: geo.haversine_km(HOME[0], HOME[1], lat, lon)
+        for person, (lat, lon) in WHERE.items()
+    }
+    return [
+        ("actual", "Where everyone actually is", actual),
+        ("all-home", "Everyone home", dict.fromkeys(LEVELS, 0.0)),
+        ("decades", "One hand per decade",
+         {"Becky": 1.0, "Evan": 10.0, "Elijah": 100.0,
+          "Caleb": 1_000.0, "Austin": 10_000.0, "Micah": 3_000.0}),
+    ]
 
 
 def rgb(value: str) -> np.ndarray:
@@ -253,10 +269,24 @@ def build_scene(root: Path) -> Scene:
     for level, person in enumerate(LEVELS, start=1):
         hand = trimesh.load(str(root / f"cad/hands/{HAND_FILE[person]}.stl"))
         hand.apply_translation((0, 0, PLATE_TOP + 1.5 + (level - 1) * HAND_GAP))
-        hands[person] = hand
+        hands[person] = split_relief(hand)
 
-    probe = fixed + [(h, rgb("#000000")) for h in hands.values()]
+    probe = fixed + [(part, rgb("#000000"))
+                     for pair in hands.values() for part in pair]
     return Scene(fixed=fixed, hands=hands, bounds=preview3d.scene_bounds(probe))
+
+
+def split_relief(hand):
+    """Separate a hand into its plate and the name standing proud of it.
+
+    The two come out of ``build_hands.py`` as one solid, which is right for
+    printing and wrong for looking at: the whole point of the lettering is
+    that it catches the light differently. Faces above the plate's top are
+    the name, so one height test parts them.
+    """
+    base_z = hand.bounds[0][2]
+    high = hand.triangles_center[:, 2] > base_z + HAND_T + 0.05
+    return hand.submesh([~high], append=True), hand.submesh([high], append=True)
 
 
 def place(hand, angle_deg: float):
@@ -275,14 +305,17 @@ def place(hand, angle_deg: float):
     return turned
 
 
-def render_view(scene: Scene, distances: dict[str, float], size: int) -> np.ndarray:
+def render_view(scene: Scene, distances: dict[str, float], size: int,
+                accent: str | None = None) -> np.ndarray:
     """One panel: the fixed parts plus the six hands at these distances."""
     from clockd import geo
 
     parts = list(scene.fixed)
     for person in LEVELS:
         angle = geo.distance_to_angle(distances[person])
-        parts.append((place(scene.hands[person], angle), rgb(PERSON_RGB[person])))
+        plate, letters = scene.hands[person]
+        parts.append((place(plate, angle), rgb(GOLD)))
+        parts.append((place(letters, angle), rgb(accent or PERSON_RGB[person])))
     return preview3d.render_scene(parts, size=size, bounds=scene.bounds)
 
 
@@ -353,6 +386,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=Path("docs/img/front"))
     parser.add_argument("--size", type=int, default=900)
     parser.add_argument("--only", default=None, help="render just this view by slug")
+    parser.add_argument(
+        "--accent", default=None, metavar="HEX",
+        help="one colour for every raised name, e.g. #1E2228, instead of per person",
+    )
     args = parser.parse_args(argv)
 
     from clockd import geo
@@ -370,10 +407,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  {len(scene.fixed)} fixed parts, 6 hands\n")
 
     panels = []
-    for slug, title, distances in VIEWS:
+    for slug, title, distances in views():
         if args.only and slug != args.only:
             continue
-        image = render_view(scene, distances, args.size)
+        image = render_view(scene, distances, args.size, args.accent)
         lines = [
             "  ".join(
                 f"{p} {geo.distance_to_angle(distances[p]):.0f}°"
@@ -388,7 +425,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  wrote {path.name}")
 
     if len(panels) > 1:
-        cols = 2
+        cols = min(len(panels), 3)
         rows = -(-len(panels) // cols)
         w, h = panels[0].size
         sheet = Image.new("RGB", (cols * w, rows * h), (247, 244, 238))
