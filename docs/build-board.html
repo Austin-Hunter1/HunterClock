@@ -518,7 +518,7 @@ own pins are the shaded cells; every other filled cell is a wire or a part you a
   <li><strong>The motor header goes in column j</strong>, rows N+2 to N+5, in the order GRN,
   GRN/WHT, RED, RED/WHT top to bottom. Both motor types use the same colours. Confirm with a
   meter before powering: the two leads of one coil read about 1.5&nbsp;Ω to each other and open
-  to the other coil.</li>
+  to the other coil. <a href="#motorwires">What connector to use</a>.</li>
 </ul>
 
 <h3 id="bridge">Making the five-pin bridge</h3>
@@ -563,6 +563,65 @@ the rail, there is no joint anywhere in it.</p>
   <p>The catch is that it welds the driver to 1/16 stepping and makes a swap a desoldering job,
   which is the thing the sockets were bought to avoid. Bridge the board, not the module.</p>
 </div>
+
+<h3 id="motorwires">Getting the motor wires in</h3>
+
+<p>This is the one connection on the board carrying real current, into a part that has to come
+out again when a hand needs servicing. Two options are worth having; a third is not.</p>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>Option</th><th>Fits the grid</th><th>Rating</th><th>Verdict</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>JST&nbsp;XH, 4&nbsp;pin</strong></td>
+      <td>2.5 mm pitch into 2.54 mm holes — 0.12 mm out over four pins, which bends in</td>
+      <td class="n">3 A at 22 AWG</td>
+      <td><strong>Use this.</strong> Polarised and latching, and it is what every 3D printer uses for exactly this job</td>
+    </tr>
+    <tr>
+      <td><strong>Screw terminal, 5.08 mm</strong></td>
+      <td>Exactly two hole pitches, so it straddles the grid perfectly</td>
+      <td class="n">10 A+</td>
+      <td>The no-crimp-tool answer. Takes bare stranded wire straight in</td>
+    </tr>
+    <tr>
+      <td>Dupont</td>
+      <td>Yes</td>
+      <td class="n">1 A, optimistically</td>
+      <td><strong>No.</strong> No latch, no polarity, and a friction fit that works loose</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>A 0.8 A coil against a 3 A connector is the headroom you want, and the latch matters more than
+the rating here: the one thing that kills these drivers is a motor lead coming adrift while the
+12 V is on. The polarisation matters too — a four-way keyed housing cannot go back in rotated,
+which a row of four dupont ends very much can.</p>
+
+<p><strong>If you use screw terminals</strong>, note that 5.08 mm pins land on every other hole
+while the driver's motor pins are on consecutive rows. Put the block at the board's edge and run
+four short jumpers across to column <code>j</code> rather than trying to make the pitches
+meet.</p>
+
+<p><strong>Check what your motors ship with first.</strong> StepperOnline sells the 17HS13 and
+23HS18 both ways — bare tinned leads, or a cable already terminated. If yours arrive with a
+connector on them, buy the mating half rather than cutting it off.</p>
+
+<h3>Three things that are not the connector</h3>
+<ul>
+  <li><strong>Strain relief.</strong> On perfboard the pads are the only thing holding the
+  connector down, and a tug on a metre of motor cable lifts them. Zip-tie the cable through two
+  spare holes an inch behind the connector, so a pull lands on the board rather than on eight
+  solder joints.</li>
+  <li><strong>Twist each coil pair.</strong> A chopper switches the coil current hard and the
+  leads radiate; twisting the two wires of a coil together cancels most of it. Keep motor cables
+  away from the thirteen-wire signal ribbon where you can.</li>
+  <li><strong>Wire all six the same way round.</strong> Same colour order, same pin 1, every
+  driver. Then a motor can be moved between channels to test one, which is the first thing you
+  will want to do when a hand misbehaves.</li>
+</ul>
 
 <h3>Where each driver starts</h3>
 <div class="scroll">
