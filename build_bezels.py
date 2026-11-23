@@ -500,6 +500,8 @@ def main(argv: list[str] | None = None) -> int:
     plate = args.out / f"bezel-plate-{bezel.style}-x{args.count}.stl"
     cq.exporters.export(compound, str(plate), tolerance=0.01, angularTolerance=0.1)
     cq.exporters.export(compound, str(args.out / f"bezel-plate-{bezel.style}-x{args.count}.3mf"))
+    # Solid bodies for Fusion or other CAD, where the STL and 3MF are only meshes.
+    cq.exporters.export(compound, str(args.out / f"bezel-plate-{bezel.style}-x{args.count}.step"))
 
     verify(plate, expect=args.count, bed=tuple(args.bed))
     # Report the mesh's real footprint, not the grid it was laid out on: with a

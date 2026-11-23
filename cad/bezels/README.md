@@ -13,6 +13,7 @@ match the cabinet's existing hardware.
 |---|---|
 | **`bezel-plate-ornate-x6.stl`** | all six, 226 × 111 mm, 44 g of solid PLA — fits a Prusa MK4 |
 | `bezel-plate-ornate-x6.3mf` | same, if you are slicing it yourself |
+| `bezel-plate-ornate-x6.step` | same six as solid bodies, for Fusion or other CAD |
 | `bezel-ornate.stl` / `.step` | one bezel, 5.9 cm³, for a test fit |
 
 **Or print them with the hands.** `cad/hands/print-plate-mk4-1of2-*.stl` and

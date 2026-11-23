@@ -35,7 +35,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 from shapely import affinity
-from shapely.geometry import MultiPolygon, Point, Polygon
+from shapely.geometry import MultiPolygon, Point, Polygon, box
 from shapely.ops import unary_union
 
 REPO = Path(__file__).resolve().parent
@@ -93,6 +93,9 @@ POINT_CAP = 18.0
 POINT_HALO = 1.8
 POINT_TIP_R = 115.0
 POINT_OVERLAP = 2.5
+#: How far back into the word, from where the neck starts, the junction fill
+#: reaches (see point_taper), mm.
+POINT_JOIN_FILL = 4.0
 #: Half-width of the short stem that ties the boss to the word.
 POINT_STEM = 4.0
 #: Round boss at the tail, the same on all six. It has to clear the largest
@@ -154,6 +157,8 @@ class HandSpec:
     tip_r: float
     color: str
     notes: list[str] = field(default_factory=list)
+    #: Fill the junction between the word and the pointed neck (see point_taper).
+    join_fill: bool = False
 
     @property
     def slug(self) -> str:
@@ -204,7 +209,9 @@ OPTION_D = {
 # levels 2-6 grip their telescoping brass tube.  Tip radii are HAND_LEN.
 # Mom and Dad are Becky and Evan -- confirmed by Austin.
 HANDS = [
-    HandSpec(1, "Becky", "Mom_ambigram.png", "Mom", 12.00, 70, "#4F7A4A"),
+    # Mom's final "m" has a foot past its main stroke, which leaves a slot
+    # between the word and the neck unless the junction is filled.
+    HandSpec(1, "Becky", "Mom_ambigram.png", "Mom", 12.00, 70, "#4F7A4A", join_fill=True),
     HandSpec(2, "Evan", "Dad_ambigram.png", "Dad", 7.14, 76, "#5B5EA6"),
     HandSpec(3, "Elijah", "Elijah_ambigram2.png", "Elijah", 6.35, 82, "#3E6470"),
     HandSpec(4, "Caleb", "Caleb_ambigram.png", "Caleb", 3.18, 88, "#A8672B"),
@@ -500,7 +507,7 @@ def point_stem(spec: HandSpec, body: MultiPolygon, *, overlap: float = 3.0) -> P
     ])
 
 
-def point_taper(merged: MultiPolygon, tip_r: float) -> Polygon:
+def point_taper(merged: MultiPolygon, tip_r: float, *, join_fill: bool = False) -> Polygon:
     """The serpentine neck, from the outer end of the word out to ``tip_r``.
 
     It starts a few millimetres back inside the word rather than at its edge,
@@ -509,11 +516,23 @@ def point_taper(merged: MultiPolygon, tip_r: float) -> Polygon:
     other join, by ``min_bridge`` on the finished blade.
     """
     half = POINT_CAP / 2.0 + POINT_HALO
-    join = merged.bounds[2] - POINT_OVERLAP
+    minx, miny, maxx, maxy = merged.bounds
+    join = maxx - POINT_OVERLAP
     span = tip_r - join
     upper = [(join + span * f, half * w) for f, w in POINT_NECK]
     lower = [(x, -y) for x, y in upper]
-    return Polygon(upper + lower[::-1])
+    taper = Polygon(upper + lower[::-1])
+    if not join_fill:
+        return taper
+
+    # The join is measured from the word's furthest point, and a last letter
+    # with a foot that sticks out past its main stroke (Mom's final "m") puts
+    # that point on the foot. The neck then starts beyond the stroke and leaves
+    # a slot between them, held only at the foot. Fill the junction with the
+    # hull of the word's last few millimetres and the start of the neck.
+    tail = merged.intersection(box(join - POINT_JOIN_FILL, miny, maxx, maxy))
+    flare = Polygon(upper[:2] + lower[:2][::-1])
+    return unary_union([taper, unary_union([tail, flare]).convex_hull])
 
 
 def point_collar(inner_r: float, outer_r: float) -> Polygon:
@@ -698,7 +717,7 @@ def build_hand(
                 f"{spec.person}: a halo of {halo:.2f} mm leaves the word in "
                 f"{len(merged.geoms)} pieces at a {POINT_CAP} mm cap height"
             )
-        outline = unary_union([merged, point_taper(merged, target_tip)])
+        outline = unary_union([merged, point_taper(merged, target_tip, join_fill=spec.join_fill)])
     else:
         # What has to land on the design radius is the *furthest point from the
         # hub*, and on a word 25 mm tall that is a corner, not the tip of the
