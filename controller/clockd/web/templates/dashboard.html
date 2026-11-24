@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block page_title %}Dashboard &middot; {{ title }}{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+<p class="lede">Where the six hands are pointing, and where they are heading.
+Solid is the hand's actual position as the firmware reports it; faint is the target.
+A dashed hand has not been zeroed by anyone, so its angle is a guess.</p>
+
+<div class="grid two">
+  <div class="card">
+    <div id="dial"></div>
+    <div class="legend" id="legend"></div>
+    <p class="small muted" style="margin:10px 0 0">
+      Home is <span id="home-label" class="mono">&mdash;</span>.
+      Brass ticks mark 1, 10, 100, 1k and 10k km; each decade is 83.7&deg;.
+    </p>
+  </div>
+
+  <div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Hand</th><th>Distance</th><th>Target</th><th>Actual</th>
+            <th>Last seen</th><th>Source</th><th>Accuracy</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="people-rows"></tbody>
+      </table>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h2>System</h2>
+      <dl class="kv" id="system-kv"></dl>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+const ui = window.clockui;
+ui.buildDial(document.getElementById("dial"));
+
+ui.onState((state) => {
+  ui.drawHands(state.people);
+  ui.renderLegend(document.getElementById("legend"), state.people);
+  document.getElementById("home-label").textContent =
+    `${state.home.name} (${state.home.lat.toFixed(4)}, ${state.home.lon.toFixed(4)})`;
+
+  const body = document.getElementById("people-rows");
+  body.replaceChildren();
+  for (const person of state.people) {
+    const tr = document.createElement("tr");
+
+    const nameCell = document.createElement("td");
+    const sw = document.createElement("span");
+    sw.className = "sw";
+    sw.style.background = person.color;
+    sw.style.marginRight = "7px";
+    nameCell.append(sw, document.createTextNode(person.name));
+    const level = document.createElement("span");
+    level.className = "muted";
+    level.textContent = " L" + person.level;
+    nameCell.appendChild(level);
+    tr.appendChild(nameCell);
+
+    const values = [
+      ui.formatKm(person.distance_km),
+      ui.formatDeg(person.target_deg),
+      ui.formatDeg(person.actual_deg),
+      ui.formatAge(person.age_s),
+      person.source || "—",
+      person.accuracy_m === null || person.accuracy_m === undefined
+        ? "—" : Math.round(person.accuracy_m) + " m",
+    ];
+    for (const value of values) {
+      const td = document.createElement("td");
+      td.textContent = value;
+      tr.appendChild(td);
+    }
+
+    const statusCell = document.createElement("td");
+    statusCell.appendChild(ui.statusBadge(person));
+    if (person.moving) {
+      const moving = document.createElement("span");
+      moving.className = "badge";
+      moving.textContent = "moving";
+      moving.style.marginLeft = "5px";
+      statusCell.appendChild(moving);
+    }
+    tr.appendChild(statusCell);
+    body.appendChild(tr);
+  }
+
+  const pico = state.pico || {};
+  const mqtt = state.mqtt || {};
+  const pairs = [
+    ["Mode", state.sim ? "simulation" : "live hardware"],
+    ["Controller", "v" + state.version + ", up " + ui.formatUptime(state.uptime_s)],
+    ["Pico link", pico.connected ? "connected" : "NOT CONNECTED"],
+    ["Firmware", (pico.firmware || "?") + " (protocol " + (pico.protocol ?? "?") +
+      ", controller speaks " + (pico.controller_protocol ?? "?") + ")"],
+    ["Pico uptime", pico.uptime_ms ? ui.formatUptime(pico.uptime_ms / 1000) : "—"],
+    ["Boot reason", pico.boot_reason || "—"],
+    ["Drivers", pico.enabled ? "enabled (holding torque on)" : "released (no holding torque)"],
+    ["Commands", (pico.commands_sent ?? 0) + " sent, " + (pico.timeouts ?? 0) + " timed out"],
+    ["MQTT", (mqtt.connected ? "connected" : "down") + " · " + (mqtt.host || "?") +
+      " · " + (mqtt.published ?? 0) + " published"],
+    ["Sources", Object.values(state.sources || {})
+      .map((s) => s.name + (s.enabled ? "" : " (off)") + ": " + (s.fixes ?? 0)).join(", ")],
+  ];
+  if (pico.last_fault) {
+    pairs.push(["Last fault", pico.last_fault.code + ": " + (pico.last_fault.msg || "")]);
+  }
+  if (state.store && state.store.error) pairs.push(["Store", state.store.error]);
+
+  const kv = document.getElementById("system-kv");
+  kv.replaceChildren();
+  for (const [key, value] of pairs) {
+    const dt = document.createElement("dt");
+    dt.textContent = key;
+    const dd = document.createElement("dd");
+    dd.textContent = value;
+    kv.append(dt, dd);
+  }
+});
+</script>
+{% endblock %}

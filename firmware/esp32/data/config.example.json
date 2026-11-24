@@ -1,0 +1,23 @@
+{
+  "_comment": [
+    "Copy to config.json, fill in, then: pio run -t uploadfs",
+    "config.json is gitignored. Never commit a WiFi or MQTT password.",
+    "The only line that differs between the six nodes is 'person'."
+  ],
+
+  "person": "evan",
+
+  "wifi_ssid": "",
+  "wifi_password": "",
+
+  "mqtt_host": "weasley-clock",
+  "mqtt_port": 1883,
+  "mqtt_user": "clock",
+  "mqtt_password": "",
+
+  "base_topic": "clock",
+
+  "brightness": 255,
+  "loop_file": "/loop.wcl",
+  "show_name": true
+}

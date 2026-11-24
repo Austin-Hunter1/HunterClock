@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Driver Board Build</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one bench column. Nets carry colour; everything else stays quiet. */
+:root{
+  --bg:#f4f6f8; --panel:#ffffff; --sunk:#eceff3;
+  --fg:#16202a; --muted:#5c6c7a; --rule:#d2dae1;
+  --brass:#9a6a1c; --signal:#1f5b9e; --hot:#a82e1b; --ok:#2a6b48;
+  --font-sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e151b; --panel:#161f27; --sunk:#1b2630;
+  --fg:#e3eaf0; --muted:#93a4b3; --rule:#2b3a47;
+  --brass:#dda856; --signal:#79b0e8; --hot:#f08a76; --ok:#64bd8c;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0e151b; --panel:#161f27; --sunk:#1b2630;
+  --fg:#e3eaf0; --muted:#93a4b3; --rule:#2b3a47;
+  --brass:#dda856; --signal:#79b0e8; --hot:#f08a76; --ok:#64bd8c;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font-family:var(--font-sans); font-size:16px; line-height:1.62;
+  -webkit-text-size-adjust:100%;
+}
+.wrap{
+  max-width:62rem; margin:0 auto;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:2.5rem 5rem;
+}
+h1,h2,h3{font-weight:600; text-wrap:balance; line-height:1.2; margin:0}
+h1{font-size:clamp(1.9rem,5vw,2.6rem); letter-spacing:-.02em}
+h2{font-size:clamp(1.3rem,3.2vw,1.6rem); letter-spacing:-.01em; margin-top:3.2rem; padding-top:1.2rem; border-top:1px solid var(--rule)}
+h3{font-size:1.02rem; margin-top:1.8rem}
+p,ul,ol{margin:.85rem 0}
+ul,ol{padding-left:1.3rem}
+li{margin:.3rem 0}
+a{color:var(--signal)}
+.lede{font-size:1.1rem; color:var(--muted); max-width:46rem; margin-top:.7rem}
+.eyebrow{
+  font-family:var(--font-mono); font-size:.72rem; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--brass); margin-bottom:.5rem;
+}
+code,.m{font-family:var(--font-mono); font-size:.92em}
+code{background:var(--sunk); padding:.1em .35em; border-radius:3px}
+.scroll{overflow-x:auto; margin:1.1rem 0; -webkit-overflow-scrolling:touch}
+table{border-collapse:collapse; width:100%; min-width:34rem; font-size:.92rem}
+caption{text-align:left; color:var(--muted); font-size:.85rem; padding-bottom:.5rem}
+th,td{text-align:left; padding:.42rem .7rem; border-bottom:1px solid var(--rule); vertical-align:top}
+th{
+  font-family:var(--font-mono); font-size:.72rem; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--muted); font-weight:500;
+  border-bottom:1px solid var(--fg);
+}
+td.n{font-family:var(--font-mono); font-variant-numeric:tabular-nums; white-space:nowrap}
+tbody tr:hover{background:var(--sunk)}
+.net{font-family:var(--font-mono); font-size:.86em; font-weight:500; white-space:nowrap}
+.n12{color:var(--hot)} .n33{color:var(--brass)} .nsig{color:var(--signal)} .ngnd{color:var(--muted)}
+.card{background:var(--panel); border:1px solid var(--rule); border-radius:6px; padding:1.1rem 1.25rem; margin:1.2rem 0}
+.warn{border-left:3px solid var(--hot)}
+.note{border-left:3px solid var(--brass)}
+.card h3{margin-top:0}
+.cols{display:grid; gap:1rem; grid-template-columns:repeat(auto-fit,minmax(15rem,1fr)); margin:1.2rem 0}
+.cols>*{min-width:0}
+.toc{
+  background:var(--panel); border:1px solid var(--rule); border-radius:6px;
+  padding:1rem 1.25rem; margin:2rem 0;
+}
+.toc ol{margin:.4rem 0; columns:2; column-gap:2rem}
+@media (max-width:30rem){.toc ol{columns:1}}
+.toc a{text-decoration:none}
+.toc a:hover{text-decoration:underline}
+/* the board map */
+.map{border-collapse:collapse; min-width:30rem; font-size:.8rem}
+.map th{border-bottom:1px solid var(--rule); text-align:center}
+.map td{border:1px solid var(--rule); padding:.3rem .45rem; text-align:center; font-family:var(--font-mono); white-space:nowrap}
+.map td.row{background:var(--sunk); font-weight:600; text-align:right}
+.map td.free{color:var(--rule)}
+.map td.gut{border:0; background:none; width:1.1rem; padding:0}
+.map td.pin{background:var(--sunk); font-weight:600}
+.map td.use{font-weight:500}
+.key{display:flex; flex-wrap:wrap; gap:.4rem 1.1rem; font-size:.82rem; color:var(--muted); margin:.6rem 0 0}
+.key span::before{content:"■ "; }
+.foot{margin-top:3.5rem; padding-top:1.2rem; border-top:1px solid var(--rule); color:var(--muted); font-size:.88rem}
+/* assembly diagram */
+.dia{margin:1.4rem 0}
+.dia svg{display:block; width:100%; min-width:40rem; max-width:48rem; height:auto}
+.dia .bt{font-family:var(--font-sans); font-size:13px; font-weight:600; fill:var(--fg)}
+.dia .bs{font-family:var(--font-sans); font-size:10.5px; fill:var(--muted)}
+.dia .bh{font-family:var(--font-mono); font-size:10px; fill:var(--hot)}
+.dia .wl{font-family:var(--font-mono); font-size:10px; fill:var(--muted)}
+.dia .dl{font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase}
+.dia .box{fill:var(--panel); stroke-width:1.5}
+.dia .ln{stroke:var(--muted); stroke-width:1.5; fill:none}
+.dia .wire{fill:none; stroke-width:2.6; stroke-linecap:round}
+.dia .pin{font-family:var(--font-mono); font-size:10.5px; fill:var(--fg)}
+.dia .pindim{font-family:var(--font-mono); font-size:10.5px; fill:var(--rule)}
+.dia .tag{font-family:var(--font-mono); font-size:9px; fill:var(--muted)}
+:root{
+  --w-red:#c0392b; --w-black:#2b2b2b; --w-yellow:#a9781a; --w-blue:#1f5b9e;
+  --w-green:#2e7d4f; --w-orange:#c2621c; --w-purple:#7b4fa8;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --w-red:#e8705c; --w-black:#c9cdd2; --w-yellow:#e0b33c; --w-blue:#79b0e8;
+  --w-green:#58b07e; --w-orange:#e89a5a; --w-purple:#b18be0;
+}}
+:root[data-theme="dark"]{
+  --w-red:#e8705c; --w-black:#c9cdd2; --w-yellow:#e0b33c; --w-blue:#79b0e8;
+  --w-green:#58b07e; --w-orange:#e89a5a; --w-purple:#b18be0;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="eyebrow">Weasley Clock · bench reference</div>
+<h1>Driver Board Build</h1>
+<p class="lede">Where every part sits on the board and which hole every wire goes in.
+Companion to <strong>Circuit Diagram Rev. 2</strong>, which has the schematic; this one is
+what to do with a soldering iron in your hand.</p>
+
+<h2 id="together" style="border-top:0; margin-top:2.2rem; padding-top:0">How it goes together</h2>
+<p>Every part on the bench, and what it joins to. Three power domains, and the only thing
+crossing between the motor side and the display side is WiFi.</p>
+
+<div class="dia scroll">
+<svg viewBox="0 0 760 684" role="img" aria-label="Assembly diagram: three power domains, the parts in each, and the wires between them">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--muted)"></path>
+    </marker>
+  </defs>
+
+  <!-- domain divider: no copper crosses this -->
+  <line x1="520" y1="40" x2="520" y2="628" stroke="var(--rule)" stroke-width="1.5" stroke-dasharray="5 5"></line>
+  <text class="dl" x="540" y="444" fill="var(--brass)">No wire crosses</text>
+  <text class="bs" x="540" y="466">The six display nodes are a</text>
+  <text class="bs" x="540" y="480">separate 5 V island. The Pi</text>
+  <text class="bs" x="540" y="494">reaches them over WiFi, and</text>
+  <text class="bs" x="540" y="508">nothing joins them to the</text>
+  <text class="bs" x="540" y="522">motor side.</text>
+
+  <!-- row 1: supplies -->
+  <rect class="box" x="20" y="86" width="220" height="54" rx="5" stroke="var(--signal)"></rect>
+  <text class="bt" x="130" y="109" text-anchor="middle">5 V 3 A supply</text>
+  <text class="bs" x="130" y="126" text-anchor="middle">USB-C</text>
+
+  <rect class="box" x="290" y="86" width="210" height="54" rx="5" stroke="var(--hot)"></rect>
+  <text class="bt" x="395" y="109" text-anchor="middle">12 V 2 A supply</text>
+  <text class="bs" x="395" y="126" text-anchor="middle">2.1 × 5.5 mm, centre positive</text>
+
+  <rect class="box" x="540" y="86" width="200" height="54" rx="5" stroke="var(--brass)"></rect>
+  <text class="bt" x="640" y="109" text-anchor="middle">USB charging strip</text>
+  <text class="bs" x="640" y="126" text-anchor="middle">5 V, six ports</text>
+
+  <!-- row 2 -->
+  <rect class="box" x="20" y="192" width="220" height="62" rx="5" stroke="var(--signal)"></rect>
+  <text class="bt" x="130" y="215" text-anchor="middle">Raspberry Pi 4</text>
+  <text class="bs" x="130" y="232" text-anchor="middle">runs clockd, Mosquitto</text>
+  <text class="bs" x="130" y="246" text-anchor="middle">hostname weasley-clock</text>
+
+  <rect class="box" x="290" y="192" width="210" height="62" rx="5" stroke="var(--hot)"></rect>
+  <text class="bt" x="395" y="215" text-anchor="middle">Barrel-jack adapter</text>
+  <text class="bs" x="395" y="232" text-anchor="middle">screw terminals</text>
+  <text class="bs" x="395" y="246" text-anchor="middle">meter the polarity first</text>
+
+  <rect class="box" x="540" y="192" width="200" height="62" rx="5" stroke="var(--brass)"></rect>
+  <text class="bt" x="640" y="215" text-anchor="middle">ESP32 dev board × 6</text>
+  <text class="bs" x="640" y="232" text-anchor="middle">one per person</text>
+  <text class="bh" x="640" y="246" text-anchor="middle">on the bench: 1 of 6</text>
+
+  <!-- row 3 -->
+  <rect class="box" x="20" y="306" width="220" height="74" rx="5" stroke="var(--signal)"></rect>
+  <text class="dl" x="130" y="325" text-anchor="middle" fill="var(--signal)">Logic board</text>
+  <text class="bt" x="130" y="345" text-anchor="middle">Pico + 2 × 20 header</text>
+  <text class="bs" x="130" y="362" text-anchor="middle">large solder breadboard</text>
+  <text class="bs" x="130" y="375" text-anchor="middle">3V3 rail lives here</text>
+
+  <rect class="box" x="290" y="306" width="210" height="74" rx="5" stroke="var(--hot)"></rect>
+  <text class="dl" x="395" y="325" text-anchor="middle" fill="var(--hot)">Power board</text>
+  <text class="bt" x="395" y="345" text-anchor="middle">5 × 100 µF bulk</text>
+  <text class="bs" x="395" y="362" text-anchor="middle">small solder breadboard</text>
+  <text class="bs" x="395" y="375" text-anchor="middle">star ground lives here</text>
+
+  <rect class="box" x="540" y="306" width="200" height="74" rx="5" stroke="var(--brass)"></rect>
+  <text class="bt" x="640" y="330" text-anchor="middle">GC9A01 display × 6</text>
+  <text class="bs" x="640" y="347" text-anchor="middle">1.28 in round, in a</text>
+  <text class="bs" x="640" y="360" text-anchor="middle">printed ornate bezel</text>
+  <text class="bh" x="640" y="375" text-anchor="middle">on the bench: 0 of 6</text>
+
+  <!-- row 4: driver boards, spanning both left columns -->
+  <rect class="box" x="20" y="436" width="480" height="96" rx="5" stroke="var(--hot)"></rect>
+  <text class="dl" x="260" y="456" text-anchor="middle" fill="var(--hot)">Driver boards × 2</text>
+  <text class="bt" x="260" y="477" text-anchor="middle">6 × A4988 · 6 × 100 µF · 6 × heatsink · 6 × 2×8 socket</text>
+  <text class="bs" x="260" y="496" text-anchor="middle">three drivers per board, eight rows each, one blank row between</text>
+  <text class="bh" x="260" y="515" text-anchor="middle">on the bench: 3 drivers, 3 heatsinks, 4 of 11 caps, no sockets</text>
+
+  <!-- row 5: motors -->
+  <rect class="box" x="20" y="588" width="480" height="62" rx="5" stroke="var(--hot)"></rect>
+  <text class="bt" x="260" y="612" text-anchor="middle">Stepper motors × 6</text>
+  <text class="bs" x="260" y="629" text-anchor="middle">2 × 23HS18 NEMA23 (Becky, Evan) · 4 × 17HS13 NEMA17</text>
+  <text class="bh" x="260" y="643" text-anchor="middle">on the bench: 0 of 6</text>
+
+  <!-- connectors, supplies to row 2 -->
+  <line class="ln" x1="130" y1="140" x2="130" y2="188" marker-end="url(#ah)"></line>
+  <text class="wl" x="138" y="168">USB-C</text>
+  <line class="ln" x1="395" y1="140" x2="395" y2="188" marker-end="url(#ah)"></line>
+  <text class="wl" x="403" y="168">barrel plug</text>
+  <line class="ln" x1="640" y1="140" x2="640" y2="188" marker-end="url(#ah)"></line>
+  <text class="wl" x="648" y="168">one port each</text>
+
+  <!-- row 2 to row 3 -->
+  <line class="ln" x1="130" y1="254" x2="130" y2="302" marker-end="url(#ah)"></line>
+  <text class="wl" x="138" y="282">USB-A → micro-USB</text>
+  <line class="ln" x1="395" y1="254" x2="395" y2="302" marker-end="url(#ah)"></line>
+  <text class="wl" x="403" y="282">2 screw terminals</text>
+  <line class="ln" x1="640" y1="254" x2="640" y2="302" marker-end="url(#ah)"></line>
+  <text class="wl" x="648" y="282">7 × F-F dupont</text>
+
+  <!-- the star-ground wire between the two left boards -->
+  <text class="wl" x="265" y="338" text-anchor="middle">GND</text>
+  <line class="ln" x1="240" y1="348" x2="290" y2="348"></line>
+
+  <!-- row 3 to driver boards -->
+  <line class="ln" x1="130" y1="380" x2="130" y2="432" marker-end="url(#ah)"></line>
+  <text class="wl" x="138" y="402">13 signals</text>
+  <text class="wl" x="138" y="415">+ 3V3 + GND</text>
+  <line class="ln" x1="395" y1="380" x2="395" y2="432" marker-end="url(#ah)"></line>
+  <text class="wl" x="403" y="402">+12 V + GND</text>
+  <text class="wl" x="403" y="415">20 AWG</text>
+
+  <!-- driver boards to motors -->
+  <line class="ln" x1="260" y1="532" x2="260" y2="584" marker-end="url(#ah)"></line>
+  <text class="wl" x="268" y="554">4 wires each:</text>
+  <text class="wl" x="268" y="567">GRN, GRN/WHT, RED, RED/WHT</text>
+
+  <!-- domain legend -->
+  <text class="dl" x="20" y="72" fill="var(--signal)">Logic · 5 V and 3.3 V</text>
+  <text class="dl" x="290" y="72" fill="var(--hot)">Motor · 12 V</text>
+  <text class="dl" x="540" y="72" fill="var(--brass)">Displays · 5 V</text>
+</svg>
+</div>
+
+<p>The three domains share exactly one point of contact: the Pico's GND goes to the power
+board's ground rail, which is the star point. That single wire is what lets the drivers read
+STEP and DIR against the same ground the Pico drives them from. The display column shares
+nothing at all.</p>
+
+<div class="toc">
+  <div class="eyebrow" style="margin-bottom:.3rem">Contents</div>
+  <ol>
+    <li><a href="#together">How it goes together</a></li>
+    <li><a href="#parts">What you have, what's missing</a></li>
+    <li><a href="#boards">Three boards</a></li>
+    <li><a href="#reading">Reading a solder breadboard</a></li>
+    <li><a href="#power">Power board</a></li>
+    <li><a href="#logic">Logic board (the Pico)</a></li>
+    <li><a href="#driver">Driver board, hole by hole</a></li>
+    <li><a href="#between">Wires between boards</a></li>
+    <li><a href="#order">Solder order</a></li>
+    <li><a href="#vref">Setting the current limit</a></li>
+    <li><a href="#displays">Display nodes</a></li>
+  </ol>
+</div>
+
+<h2 id="parts">What you have, what's missing</h2>
+<p>From the photo, against the wire list in the circuit diagram.</p>
+
+<div class="scroll">
+<table>
+  <caption>Counted off the bench photo. Check me on the ones marked short.</caption>
+  <thead><tr><th>Part</th><th>On the bench</th><th>Needed</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>Raspberry Pi Pico</td><td class="n">1</td><td class="n">1</td><td>Right board — the firmware wants a plain Pico, not a W</td></tr>
+    <tr><td>Stepper drivers (red carriers)</td><td class="n">3</td><td class="n">6</td><td><strong>Short 3</strong></td></tr>
+    <tr><td>Driver heatsinks</td><td class="n">3</td><td class="n">6</td><td><strong>Short 3</strong></td></tr>
+    <tr><td>Electrolytic caps</td><td class="n">4</td><td class="n">11</td><td><strong>Short 7</strong> — 6 at the drivers, 5 in parallel as bulk</td></tr>
+    <tr><td>ESP32 dev board</td><td class="n">1</td><td class="n">6</td><td><strong>Short 5</strong></td></tr>
+    <tr><td>Male header, 20-pin strips</td><td class="n">2</td><td class="n">2</td><td>Exactly enough for the Pico, none spare</td></tr>
+    <tr><td>Barrel-jack screw adapter</td><td class="n">1</td><td class="n">1</td><td>Confirm centre-positive against the supply's label</td></tr>
+    <tr><td>Solder breadboards, large</td><td class="n">2+</td><td class="n">2–3</td><td>Enough</td></tr>
+    <tr><td>Solder breadboard, small</td><td class="n">1</td><td class="n">1</td><td>Power entry</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Not in the photo and needed before the clock runs: six steppers (two 23HS18 NEMA23, four
+17HS13 NEMA17), six GC9A01 displays, the Pi, a 12&nbsp;V 2&nbsp;A supply, a 5&nbsp;V 3&nbsp;A
+supply, 22&nbsp;AWG solid hookup wire in at least four colours, and solder.</p>
+
+<div class="card note">
+  <h3>Two things to buy that are easy to miss</h3>
+  <p><strong>Female headers, 6 × 2 × 8-pin.</strong> Your drivers already have their male pins
+  soldered on, pointing down. If you solder those straight into the board the driver is there for
+  good, and a blown A4988 means desoldering 16 pins next to a motor connector. Sockets cost a
+  couple of dollars and make a dead driver a ten-second swap.</p>
+  <p><strong>More male header.</strong> Your two 20-pin strips are exactly the Pico and nothing
+  else. The motor connections want 6 × 4-pin, and the ribbon between boards wants 2 × 13-pin.</p>
+</div>
+
+<div class="card">
+  <h3>Two parts I can't identify</h3>
+  <p>The three-legged device at bottom-left and the small IC in the box at top-right aren't in
+  the wire list and I can't read their markings in the photo. Tell me what's printed on them and
+  I'll say where they go, or confirm they belong to something else.</p>
+</div>
+
+<div class="card warn">
+  <h3>Check the silkscreen before you set any current</h3>
+  <p>Red carriers are usually A4988, but DRV8825s exist in red too and the maths is different:
+  A4988 is I<sub>max</sub> = V<sub>ref</sub> ÷ (8 × R<sub>s</sub>), DRV8825 is
+  I<sub>max</sub> = 2 × V<sub>ref</sub>. A DRV8825 also labels its microstep pins M0–M2 instead of
+  MS1–MS3. The wiring below is identical either way; only the Vref number changes.</p>
+</div>
+
+<h2 id="boards">Three boards</h2>
+<p>Splitting the build in three keeps the high-current loop away from the Pico, gives you one
+star ground instead of several, and means a mistake on one board doesn't mean rebuilding the
+others.</p>
+
+<div class="cols">
+  <div class="card">
+    <h3>Power board <span class="net n12">12 V</span></h3>
+    <p>Small board. Barrel-jack adapter, five 100&nbsp;µF caps in parallel, and the star ground.
+    Everything 12&nbsp;V enters and leaves here.</p>
+  </div>
+  <div class="card">
+    <h3>Logic board <span class="net n33">3V3</span></h3>
+    <p>Large board. The Pico, the 3.3&nbsp;V rail it feeds, and the thirteen signal wires out.
+    No 12&nbsp;V on this board at all.</p>
+  </div>
+  <div class="card">
+    <h3>Driver board(s) <span class="net nsig">STEP/DIR</span></h3>
+    <p>One large board if yours has 53+ rows, otherwise two with three drivers each. Drivers,
+    their caps, and the motor headers.</p>
+  </div>
+</div>
+
+<h2 id="reading">Reading a solder breadboard</h2>
+<p>Your EPLZON boards are wired like a breadboard, not like plain perfboard. That is good news:
+most of the connections are made by the board itself.</p>
+
+<ul>
+  <li><strong>Four rails</strong> run the length of the board, two down each long edge. Every hole
+  in one rail is the same node. These carry power.</li>
+  <li><strong>The middle</strong> is rows of five linked holes — columns <code>a b c d e</code> on
+  the left of the centre gutter, <code>f g h i j</code> on the right. Each group of five is one
+  node. The left five and the right five of the same row are <em>not</em> connected.</li>
+  <li><strong>The gutter</strong> is 0.3&nbsp;in, so a chip straddling it lands with its two pin
+  rows in different banks. That's how the drivers and the Pico mount.</li>
+</ul>
+
+<div class="card warn">
+  <h3>Count your rows before you cut anything</h3>
+  <p>Each driver takes 8 rows, and this layout leaves 1 blank between them, so six drivers need
+  <strong>53 rows</strong> and three need <strong>26</strong>. Count the numbered rows down one
+  bank of your board:</p>
+  <ul>
+    <li><strong>63 rows</strong> (the 830-point size) — all six drivers on one board.</li>
+    <li><strong>30 rows</strong> (the 400-point size) — three per board, use two boards.</li>
+  </ul>
+  <p>Everything below gives row numbers for both.</p>
+</div>
+
+<h2 id="power">Power board</h2>
+<p>On the small board. Call the two rails on one edge <span class="net n12">+12V</span> and
+<span class="net ngnd">GND</span>.</p>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>From</th><th>To</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Barrel adapter <span class="m">+</span> screw terminal</td><td class="net n12">+12V rail</td><td>20 AWG. Confirm centre-positive first with a meter</td></tr>
+    <tr><td>Barrel adapter <span class="m">−</span> screw terminal</td><td class="net ngnd">GND rail</td><td>20 AWG. This rail is the star ground for the whole clock</td></tr>
+    <tr><td>5 × 100&nbsp;µF, all <span class="m">+</span> legs</td><td class="net n12">+12V rail</td><td>Spread along the rail, not bunched</td></tr>
+    <tr><td>5 × 100&nbsp;µF, all <span class="m">−</span> legs</td><td class="net ngnd">GND rail</td><td>About 500&nbsp;µF of bulk, which is what Pololu asks for</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="card warn">
+  <h3>Capacitor polarity</h3>
+  <p>The <strong>stripe</strong> down the can marks the negative leg, and the negative leg is the
+  <strong>short</strong> one. Backwards across 12&nbsp;V, an electrolytic vents — loudly, and
+  sometimes on fire. Check all eleven twice before the supply ever goes in.</p>
+</div>
+
+<h2 id="logic">Logic board (the Pico)</h2>
+
+<p><strong>Leave the 3-pin debug header off.</strong> The three pads on the Pico's short edge
+opposite the USB socket are SWCLK, GND and SWDIO, and nothing in this build uses them: the Pico
+talks to the Pi over USB, MicroPython is installed by holding BOOTSEL and dropping a .uf2 on the
+drive that appears, and the firmware is copied with <code>mpremote</code>. SWD is only for
+step-through debugging with a second Pico as a probe. Soldering it also puts a third row of pins
+under a board that has no strip to take them.</p>
+
+<p>Solder the two 20-pin strips into the Pico so the pins point down, then mount it across the
+gutter with the <strong>USB socket at row 1</strong>. Its pin rows are 0.7&nbsp;in apart, so the
+left row lands in column <code>b</code> and the right row in column <code>g</code>.</p>
+
+<p>Physical pin 1 is the top-left corner next to the USB socket. Down the left edge is pins 1–20,
+so <strong>row = pin number</strong>. Up the right edge is pins 21–40, so
+<strong>row = 41 − pin</strong>.</p>
+
+<div class="card warn">
+  <h3>Solder the wires before you fit the Pico</h3>
+  <p>The Pico's body is 21&nbsp;mm wide and overhangs columns <code>a</code> and <code>h</code> by
+  about a millimetre. The holes stay usable, but not comfortably with the board in place. Run all
+  fifteen wires below into the bare board first, then drop the Pico in last.</p>
+</div>
+
+<div class="scroll">
+<table class="map">
+  <caption>Logic board. Only the rows that carry a wire are listed; everything else stays empty.</caption>
+  <thead><tr><th>Row</th><th>col a</th><th>col b</th><th></th><th>col g</th><th>col h</th><th>Carries</th></tr></thead>
+  <tbody>
+    <tr><td class="row">3</td><td class="free">·</td><td class="pin">pin 3</td><td class="gut"></td><td class="pin">pin 38</td><td class="use">wire out</td><td><span class="net ngnd">GND → star point</span></td></tr>
+    <tr><td class="row">4</td><td class="use">wire out</td><td class="pin">pin 4</td><td class="gut"></td><td class="pin">pin 37</td><td class="free">·</td><td><span class="net nsig">GP2 · STEP 1 Becky</span></td></tr>
+    <tr><td class="row">5</td><td class="use">wire out</td><td class="pin">pin 5</td><td class="gut"></td><td class="pin">pin 36</td><td class="use">wire out</td><td><span class="net nsig">GP3 · DIR 1</span> / <span class="net n33">3V3 OUT → 3V3 rail</span></td></tr>
+    <tr><td class="row">6</td><td class="use">wire out</td><td class="pin">pin 6</td><td class="gut"></td><td class="pin">pin 35</td><td class="free">·</td><td><span class="net nsig">GP4 · STEP 2 Evan</span></td></tr>
+    <tr><td class="row">7</td><td class="use">wire out</td><td class="pin">pin 7</td><td class="gut"></td><td class="pin">pin 34</td><td class="free">·</td><td><span class="net nsig">GP5 · DIR 2</span></td></tr>
+    <tr><td class="row">9</td><td class="use">wire out</td><td class="pin">pin 9</td><td class="gut"></td><td class="pin">pin 32</td><td class="free">·</td><td><span class="net nsig">GP6 · STEP 3 Elijah</span></td></tr>
+    <tr><td class="row">10</td><td class="use">wire out</td><td class="pin">pin 10</td><td class="gut"></td><td class="pin">pin 31</td><td class="free">·</td><td><span class="net nsig">GP7 · DIR 3</span></td></tr>
+    <tr><td class="row">11</td><td class="use">wire out</td><td class="pin">pin 11</td><td class="gut"></td><td class="pin">pin 30</td><td class="free">·</td><td><span class="net nsig">GP8 · STEP 4 Caleb</span></td></tr>
+    <tr><td class="row">12</td><td class="use">wire out</td><td class="pin">pin 12</td><td class="gut"></td><td class="pin">pin 29</td><td class="free">·</td><td><span class="net nsig">GP9 · DIR 4</span></td></tr>
+    <tr><td class="row">14</td><td class="use">wire out</td><td class="pin">pin 14</td><td class="gut"></td><td class="pin">pin 27</td><td class="free">·</td><td><span class="net nsig">GP10 · STEP 5 Austin</span></td></tr>
+    <tr><td class="row">15</td><td class="use">wire out</td><td class="pin">pin 15</td><td class="gut"></td><td class="pin">pin 26</td><td class="free">·</td><td><span class="net nsig">GP11 · DIR 5</span></td></tr>
+    <tr><td class="row">16</td><td class="use">wire out</td><td class="pin">pin 16</td><td class="gut"></td><td class="pin">pin 25</td><td class="free">·</td><td><span class="net nsig">GP12 · STEP 6 Micah</span></td></tr>
+    <tr><td class="row">17</td><td class="use">wire out</td><td class="pin">pin 17</td><td class="gut"></td><td class="pin">pin 24</td><td class="free">·</td><td><span class="net nsig">GP13 · DIR 6</span></td></tr>
+    <tr><td class="row">19</td><td class="use">wire out</td><td class="pin">pin 19</td><td class="gut"></td><td class="pin">pin 22</td><td class="free">·</td><td><span class="net nsig">GP14 · ENABLE, all six</span></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Two more wires and the board is done: <strong>row 5 column h</strong> (pin 36, 3V3 OUT) to the
+3V3 rail on this board, and <strong>row 3 column h</strong> (pin 38, GND) to the power board's
+GND rail. Leave pin 37 unconnected — tying 3V3_EN low shuts the regulator off.</p>
+
+<p>The Pico's 3.3&nbsp;V regulator supplies 300&nbsp;mA. Six A4988 VDD pins draw well under
+100&nbsp;mA between them, so one Pico comfortably powers all six drivers' logic.</p>
+
+<h2 id="driver">Driver board, hole by hole</h2>
+
+<p>Each driver straddles the gutter with its pin rows in columns <code>c</code> and
+<code>g</code> — 0.6&nbsp;in apart, which is what the carrier is. That leaves <code>a</code> and
+<code>b</code> free on the logic side and <code>h</code>, <code>i</code>, <code>j</code> free on
+the power side, which is where every wire goes.</p>
+
+<p>Orient the driver so its <strong>ENABLE pin is at the low-numbered row</strong> and the
+<strong>VMOT pin is opposite it</strong>. Get this backwards and 12&nbsp;V lands on the ENABLE
+input.</p>
+
+<h3>Rails on this board</h3>
+<div class="scroll">
+<table>
+  <thead><tr><th>Rail</th><th>Net</th><th>Feeds</th></tr></thead>
+  <tbody>
+    <tr><td>Left inner</td><td class="net n33">+3V3</td><td>The five bridged microstep/reset pins, and VDD</td></tr>
+    <tr><td>Left outer</td><td>unused</td><td>Handy as a meter ground if you jumper it to GND</td></tr>
+    <tr><td>Right inner</td><td class="net n12">+12V</td><td>VMOT on every driver</td></tr>
+    <tr><td>Right outer</td><td class="net ngnd">GND</td><td>Both GND pins on every driver, and the cap negatives</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>One driver's eight rows</h3>
+<p>Rows are given as an offset from the driver's first row <span class="m">N</span>. The driver's
+own pins are the shaded cells; every other filled cell is a wire or a part you add.</p>
+
+<div class="scroll">
+<table class="map">
+  <caption>Repeat exactly for all six. Only the STEP and DIR wires differ.</caption>
+  <thead><tr><th>Row</th><th>col a</th><th>col b</th><th>col c</th><th></th><th>col g</th><th>col h</th><th>col i</th><th>col j</th></tr></thead>
+  <tbody>
+    <tr><td class="row">N</td><td class="free">·</td><td class="use">ENABLE wire</td><td class="pin">ENABLE</td><td class="gut"></td><td class="pin">VMOT</td><td class="use">cap <span class="m">+</span></td><td class="use">→ +12V</td><td class="free">·</td></tr>
+    <tr><td class="row">N+1</td><td class="use">bridge ┐</td><td class="free">·</td><td class="pin">MS1</td><td class="gut"></td><td class="pin">GND</td><td class="use">cap <span class="m">−</span></td><td class="use">→ GND</td><td class="free">·</td></tr>
+    <tr><td class="row">N+2</td><td class="use">bridge │</td><td class="free">·</td><td class="pin">MS2</td><td class="gut"></td><td class="pin">2B</td><td class="free">·</td><td class="free">·</td><td class="use">motor GRN</td></tr>
+    <tr><td class="row">N+3</td><td class="use">bridge │</td><td class="free">·</td><td class="pin">MS3</td><td class="gut"></td><td class="pin">2A</td><td class="free">·</td><td class="free">·</td><td class="use">motor GRN/WHT</td></tr>
+    <tr><td class="row">N+4</td><td class="use">bridge │</td><td class="free">·</td><td class="pin">RESET</td><td class="gut"></td><td class="pin">1A</td><td class="free">·</td><td class="free">·</td><td class="use">motor RED</td></tr>
+    <tr><td class="row">N+5</td><td class="use">bridge ┘ → 3V3</td><td class="free">·</td><td class="pin">SLEEP</td><td class="gut"></td><td class="pin">1B</td><td class="free">·</td><td class="free">·</td><td class="use">motor RED/WHT</td></tr>
+    <tr><td class="row">N+6</td><td class="free">·</td><td class="use">STEP wire</td><td class="pin">STEP</td><td class="gut"></td><td class="pin">VDD</td><td class="free">·</td><td class="use">→ +3V3</td><td class="free">·</td></tr>
+    <tr><td class="row">N+7</td><td class="free">·</td><td class="use">DIR wire</td><td class="pin">DIR</td><td class="gut"></td><td class="pin">GND</td><td class="free">·</td><td class="use">→ GND</td><td class="free">·</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p class="key">
+  <span style="color:var(--brass)">3V3 — bridge in column a, rows N+1 to N+5, then on to the rail</span>
+  <span style="color:var(--hot)">12 V — column i, row N</span>
+  <span style="color:var(--muted)">GND — column i, rows N+1 and N+7</span>
+  <span style="color:var(--signal)">Signals — column b</span>
+</p>
+
+<h3>The four details that matter</h3>
+<ul>
+  <li><strong>The bridge in column a</strong> is one piece of solid wire soldered into five
+  consecutive holes, rows N+1 to N+5, then carried on to the +3V3 rail. It ties MS1, MS2, MS3,
+  RESET and SLEEP high in one go: all three microstep pins high is 1/16 stepping, and RESET and
+  SLEEP high is what wakes the driver up. Keep it clear of row N and row N+6, which are ENABLE
+  and STEP. <a href="#bridge">How to make it</a>.</li>
+  <li><strong>The capacitor sits in column h</strong>, positive leg in row N (VMOT) and negative
+  in row N+1 (GND) — right at the pins, which is the point of it. If its legs are 3.5&nbsp;mm
+  apart rather than 2.54, bend them gently to reach.</li>
+  <li><strong>VDD gets its own wire.</strong> 3.3&nbsp;V is needed on both sides of the driver,
+  and the rails can't be in two places, so run one wire from column i of row N+6 round the end of
+  the driver to the +3V3 rail. One per driver.</li>
+  <li><strong>The motor header goes in column j</strong>, rows N+2 to N+5, in the order GRN,
+  GRN/WHT, RED, RED/WHT top to bottom. Both motor types use the same colours. Confirm with a
+  meter before powering: the two leads of one coil read about 1.5&nbsp;Ω to each other and open
+  to the other coil. <a href="#motorwires">What connector to use</a>.</li>
+</ul>
+
+<h3 id="bridge">Making the five-pin bridge</h3>
+
+<p>Six of these to make, so it is worth having a method. The five pins are five separate
+tie-strips that all have to end up at 3.3&nbsp;V, and column <code>a</code> of each row is on the
+same strip as the driver pin in column <code>c</code>. So a single wire down column
+<code>a</code>, soldered at five points, is the whole connection — and because it carries on to
+the rail, there is no joint anywhere in it.</p>
+
+<ol>
+  <li><strong>Use a trimmed capacitor leg.</strong> You will have eleven electrolytics to shorten
+  and their legs are tinned solid wire, perfect stiffness, already the right diameter. Failing
+  that, 22&nbsp;AWG solid hookup wire with the insulation stripped off.</li>
+  <li><strong>Cut it about 20&nbsp;mm.</strong> Five holes at 2.54&nbsp;mm is 10.2&nbsp;mm, plus
+  the run to the rail and a little to hold.</li>
+  <li><strong>Bend an L.</strong> A straight section for the five holes and a right angle at the
+  row-N+5 end that reaches across to the +3V3 rail.</li>
+  <li><strong>Tack the two ends first.</strong> Solder row N+1 and row N+5 only, then look along
+  the wire. If it has wandered off column <code>a</code> you can reheat one joint and nudge it;
+  once all five are down it is a job to get out.</li>
+  <li><strong>Then the middle three</strong>, a second or two each. These pads lift if you cook
+  them.</li>
+  <li><strong>Solder the tail to the rail last</strong>, so the bridge is already anchored.</li>
+</ol>
+
+<p>Then meter it, before the drivers go in:</p>
+<ul>
+  <li><strong>Continuity</strong> from the +3V3 rail to column <code>b</code> of each of rows N+1
+  to N+5. Probe column <code>b</code>, not the wire — that proves the strip is live, which is
+  what the driver pin will actually sit in.</li>
+  <li><strong>No continuity</strong> from the rail to row N or row N+6. Those are ENABLE and
+  STEP, 2.54&nbsp;mm from each end of the bridge, and a whisker of solder across either one puts
+  3.3&nbsp;V on a Pico output.</li>
+</ul>
+
+<div class="card note">
+  <h3>The alternative: bridge the driver instead of the board</h3>
+  <p>You can solder the link across MS1–SLEEP on the carrier itself, before it ever goes near the
+  board, and then run one wire from the driver to the rail. It is easier to do at the bench with
+  the module in a vice, and it keeps column <code>a</code> empty.</p>
+  <p>The catch is that it welds the driver to 1/16 stepping and makes a swap a desoldering job,
+  which is the thing the sockets were bought to avoid. Bridge the board, not the module.</p>
+</div>
+
+<h3 id="motorwires">Getting the motor wires in</h3>
+
+<p>This is the one connection on the board carrying real current, into a part that has to come
+out again when a hand needs servicing. Two options are worth having; a third is not.</p>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>Option</th><th>Fits the grid</th><th>Rating</th><th>Verdict</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>JST&nbsp;XH, 4&nbsp;pin</strong></td>
+      <td>2.5 mm pitch into 2.54 mm holes — 0.12 mm out over four pins, which bends in</td>
+      <td class="n">3 A at 22 AWG</td>
+      <td><strong>Use this.</strong> Polarised and latching, and it is what every 3D printer uses for exactly this job</td>
+    </tr>
+    <tr>
+      <td><strong>Screw terminal, 5.08 mm</strong></td>
+      <td>Exactly two hole pitches, so it straddles the grid perfectly</td>
+      <td class="n">10 A+</td>
+      <td>The no-crimp-tool answer. Takes bare stranded wire straight in</td>
+    </tr>
+    <tr>
+      <td>Dupont</td>
+      <td>Yes</td>
+      <td class="n">1 A, optimistically</td>
+      <td><strong>Not here.</strong> No latch, no polarity, a friction fit that works loose — and it is the right part for the signal ribbon, so keep it for that</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>A 0.8 A coil against a 3 A connector is the headroom you want, and the latch matters more than
+the rating here: the one thing that kills these drivers is a motor lead coming adrift while the
+12 V is on. The polarisation matters too — a four-way keyed housing cannot go back in rotated,
+which a row of four dupont ends very much can.</p>
+
+<p><strong>If you use screw terminals</strong>, note that 5.08 mm pins land on every other hole
+while the driver's motor pins are on consecutive rows. Put the block at the board's edge and run
+four short jumpers across to column <code>j</code> rather than trying to make the pitches
+meet.</p>
+
+<p><strong>Check what your motors ship with first.</strong> StepperOnline sells the 17HS13 and
+23HS18 both ways — bare tinned leads, or a cable already terminated. If yours arrive with a
+connector on them, buy the mating half rather than cutting it off.</p>
+
+<h3>Three things that are not the connector</h3>
+<ul>
+  <li><strong>Strain relief.</strong> On perfboard the pads are the only thing holding the
+  connector down, and a tug on a metre of motor cable lifts them. Zip-tie the cable through two
+  spare holes an inch behind the connector, so a pull lands on the board rather than on eight
+  solder joints.</li>
+  <li><strong>Twist each coil pair.</strong> A chopper switches the coil current hard and the
+  leads radiate; twisting the two wires of a coil together cancels most of it. Keep motor cables
+  away from the thirteen-wire signal ribbon where you can.</li>
+  <li><strong>Wire all six the same way round.</strong> Same colour order, same pin 1, every
+  driver. Then a motor can be moved between channels to test one, which is the first thing you
+  will want to do when a hand misbehaves.</li>
+</ul>
+
+<h3>Where each driver starts</h3>
+<div class="scroll">
+<table>
+  <caption>Pico pins from Circuit Diagram Rev. 2, Diagram 2. Channel order is hub level order.</caption>
+  <thead><tr><th>Driver</th><th>Person</th><th>Motor</th><th>Row N<br>one board</th><th>Row N<br>two boards</th><th>STEP</th><th>DIR</th></tr></thead>
+  <tbody>
+    <tr><td class="n">1</td><td>Becky</td><td>23HS18 NEMA23</td><td class="n">1</td><td class="n">B · 1</td><td class="n">pin 4 · GP2</td><td class="n">pin 5 · GP3</td></tr>
+    <tr><td class="n">2</td><td>Evan</td><td>23HS18 NEMA23</td><td class="n">10</td><td class="n">B · 10</td><td class="n">pin 6 · GP4</td><td class="n">pin 7 · GP5</td></tr>
+    <tr><td class="n">3</td><td>Elijah</td><td>17HS13 NEMA17</td><td class="n">19</td><td class="n">B · 19</td><td class="n">pin 9 · GP6</td><td class="n">pin 10 · GP7</td></tr>
+    <tr><td class="n">4</td><td>Caleb</td><td>17HS13 NEMA17</td><td class="n">28</td><td class="n">C · 1</td><td class="n">pin 11 · GP8</td><td class="n">pin 12 · GP9</td></tr>
+    <tr><td class="n">5</td><td>Austin</td><td>17HS13 NEMA17</td><td class="n">37</td><td class="n">C · 10</td><td class="n">pin 14 · GP10</td><td class="n">pin 15 · GP11</td></tr>
+    <tr><td class="n">6</td><td>Micah</td><td>17HS13 NEMA17</td><td class="n">46</td><td class="n">C · 19</td><td class="n">pin 16 · GP12</td><td class="n">pin 17 · GP13</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="between">Wires between boards</h2>
+<div class="scroll">
+<table>
+  <thead><tr><th>From</th><th>To</th><th>Wire</th></tr></thead>
+  <tbody>
+    <tr><td>Power board <span class="net n12">+12V</span> rail</td><td>Driver board <span class="net n12">+12V</span> rail</td><td>20 AWG, one per driver board</td></tr>
+    <tr><td>Power board <span class="net ngnd">GND</span> rail</td><td>Driver board <span class="net ngnd">GND</span> rail</td><td>20 AWG, one per driver board</td></tr>
+    <tr><td>Power board <span class="net ngnd">GND</span> rail</td><td>Logic board, Pico pin 38</td><td>22 AWG — this is the star point</td></tr>
+    <tr><td>Logic board <span class="net n33">3V3</span> rail</td><td>Driver board <span class="net n33">+3V3</span> rail</td><td>22 AWG</td></tr>
+    <tr><td>Logic board, 13 signal wires</td><td>Driver board column b</td><td>12 × STEP/DIR + 1 × ENABLE</td></tr>
+    <tr><td>Pi USB-A</td><td>Pico micro-USB</td><td>Data and 5 V. Pico pin 40 is fed by this</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>ENABLE is a single Pico pin feeding six driver inputs. Take one wire from the logic board to
+the first driver board and daisy-chain it to the second, rather than running two long wires from
+the same hole.</p>
+
+<p><strong>Rainbow dupont ribbon is the right part for these thirteen signals.</strong> They are
+logic-level and draw microamps, the ribbon keeps the bundle flat and in a fixed colour order so a
+miscount is visible, and it peels apart as far as you need. It is only the motor leads that want
+something latching.</p>
+
+<div class="card note">
+  <h3>The 12 V supply is tighter than it looks</h3>
+  <p>At 1&nbsp;A per coil into roughly 1.5&nbsp;Ω windings, twelve coils dissipate about
+  18&nbsp;W, which the choppers pull from 12&nbsp;V as roughly 1.5&nbsp;A before driver losses. A
+  2&nbsp;A supply covers that, but not with much room. It's fine in practice because the hands
+  move rarely and seldom together — just don't be surprised if a simultaneous six-hand sweep at
+  full current sags the rail. Setting Vref for 0.8&nbsp;A instead of 1.0 removes the question
+  entirely, and a clock hand needs nothing like 1&nbsp;A.</p>
+</div>
+
+<h2 id="order">Solder order</h2>
+<p>This sequence exists so that every stage can be tested before the next one can damage
+anything. Don't reorder it.</p>
+
+<ol>
+  <li><strong>Power board.</strong> Barrel adapter, then the five bulk caps. Check polarity on
+  all five. Don't plug the supply in.</li>
+  <li><strong>Logic board, wires first.</strong> All thirteen signal wires into column b, the
+  3V3 rail wire, the GND wire. Then the Pico's headers, then the Pico.</li>
+  <li><strong>Test the Pico alone.</strong> USB to the Pi, flash the firmware, confirm it
+  enumerates. Nothing else is connected yet.</li>
+  <li><strong>Driver board, everything except the drivers.</strong> Rail wires, the column-a
+  bridges, the VDD wires, the caps, the motor headers, the sockets if you bought them.</li>
+  <li><strong>Continuity check with the board bare.</strong> Meter from each rail to each hole it
+  should reach, and — more important — check that +12V and GND are open to each other, and that
+  +3V3 and GND are open to each other. This is the cheapest five minutes in the build.</li>
+  <li><strong>Fit the drivers. Logic power only.</strong> No 12&nbsp;V, no motors. Confirm
+  3.3&nbsp;V on every VDD pin and 0&nbsp;V on every VMOT.</li>
+  <li><strong>Set Vref on each driver</strong> — see below. Still no 12&nbsp;V to the motors and
+  no motors connected.</li>
+  <li><strong>Power off. Connect 12&nbsp;V, motors still unplugged.</strong> Confirm 12&nbsp;V at
+  each VMOT. Leave it a minute and feel for anything warm.</li>
+  <li><strong>Power off. Connect one motor.</strong> Power on, send a few steps, watch it turn.
+  Then add the rest one at a time, powering down between each.</li>
+</ol>
+
+<div class="card warn">
+  <h3>Never</h3>
+  <ul>
+    <li><strong>Never plug or unplug a motor with 12&nbsp;V on.</strong> The coil's collapsing
+    field has nowhere to go and it destroys the driver. This is the single most common way these
+    boards die.</li>
+    <li><strong>Never power 12&nbsp;V before setting Vref.</strong> The pot ships at an arbitrary
+    position and can be at full current.</li>
+    <li><strong>Never fit a driver backwards.</strong> ENABLE at the low row, VMOT opposite.</li>
+    <li><strong>Never tie Pico pin 37 (3V3_EN) to anything.</strong> It shuts the regulator off.</li>
+  </ul>
+</div>
+
+<h2 id="vref">Setting the current limit</h2>
+<p>Logic power on, motor supply off, motor disconnected. Measure between the trim pot's metal
+screw and GND, and turn the pot until you read the figure for your board's sense resistor. Read
+the marking on the resistor next to the pot.</p>
+
+<div class="scroll">
+<table>
+  <caption>A4988 only. A DRV8825 uses I<sub>max</sub> = 2 × V<sub>ref</sub>, so 0.8 A is 0.40 V whatever the sense resistor.</caption>
+  <thead><tr><th>Marking</th><th>R<sub>s</sub></th><th>V<sub>ref</sub> for 1.0 A</th><th>V<sub>ref</sub> for 0.8 A</th></tr></thead>
+  <tbody>
+    <tr><td class="n">R100</td><td class="n">0.100 Ω</td><td class="n">0.80 V</td><td class="n">0.64 V</td></tr>
+    <tr><td class="n">R068</td><td class="n">0.068 Ω</td><td class="n">0.54 V</td><td class="n">0.44 V</td></tr>
+    <tr><td class="n">R050</td><td class="n">0.050 Ω</td><td class="n">0.40 V</td><td class="n">0.32 V</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>The 23HS18 is rated 2.0&nbsp;A and the 17HS13 1.5&nbsp;A, so either figure leaves headroom.
+Start at 0.8&nbsp;A: a clock hand needs almost no torque, the drivers stay cool, and the 12&nbsp;V
+supply stops being marginal. Stick a heatsink on each driver anyway.</p>
+
+<h2 id="displays">Display nodes</h2>
+<p>Six self-contained ESP32 + GC9A01 pairs, each on its own USB power, with no wire to the motor
+side at all. The Pi reaches them over WiFi. Nothing here is soldered — it is all female-to-female
+dupont between two pin headers.</p>
+
+<div class="dia scroll">
+<svg viewBox="0 0 780 530" role="img" aria-label="ESP32 dev board and GC9A01 display, with the eight wires between them">
+  <!-- ESP32 -->
+  <rect x="58" y="54" width="132" height="440" rx="6" fill="var(--panel)" stroke="var(--fg)" stroke-width="1.5"></rect>
+  <rect x="96" y="44" width="56" height="18" rx="3" fill="var(--sunk)" stroke="var(--rule)"></rect>
+  <text class="tag" x="124" y="38" text-anchor="middle">micro-USB, 5 V in</text>
+  <rect x="76" y="150" width="96" height="150" rx="3" fill="var(--sunk)" stroke="var(--rule)"></rect>
+  <text class="tag" x="124" y="228" text-anchor="middle">ESP32-WROOM-32</text>
+  <text class="dl" x="58" y="516" fill="var(--signal)">ESP32 dev board, 30 pin</text>
+
+  <!-- GC9A01 -->
+  <rect x="566" y="96" width="196" height="230" rx="6" fill="var(--panel)" stroke="var(--fg)" stroke-width="1.5"></rect>
+  <circle cx="692" cy="211" r="62" fill="var(--sunk)" stroke="var(--rule)"></circle>
+  <circle cx="692" cy="211" r="51" fill="#16181c" stroke="none"></circle>
+  <text class="dl" x="566" y="352" fill="var(--brass)">GC9A01 1.28 in round, 7 pin</text>
+
+  <!-- wires, drawn first so the pin blocks sit on top of their ends -->
+  <g class="wire">
+    <path d="M190 68 C 330 68, 430 120, 566 120" stroke="var(--w-red)"></path>
+    <path d="M190 96 C 330 96, 430 145, 566 145" stroke="var(--w-black)"></path>
+    <path d="M190 292 C 330 292, 430 170, 566 170" stroke="var(--w-yellow)"></path>
+    <path d="M190 460 C 360 460, 420 195, 566 195" stroke="var(--w-blue)"></path>
+    <path d="M190 152 C 330 152, 430 220, 566 220" stroke="var(--w-green)"></path>
+    <path d="M190 264 C 330 264, 430 245, 566 245" stroke="var(--w-orange)"></path>
+    <path d="M190 180 C 330 180, 430 270, 566 270" stroke="var(--w-purple)"></path>
+  </g>
+
+  <!-- ESP32 header: the one side every wire lands on -->
+  <g>
+    <rect x="176" y="58" width="14" height="436" fill="var(--sunk)" stroke="var(--rule)"></rect>
+    <rect x="176" y="61" width="14" height="14" fill="var(--w-red)"></rect>
+    <text class="pin" x="170" y="72" text-anchor="end">3V3</text>
+    <rect x="176" y="89" width="14" height="14" fill="var(--w-black)"></rect>
+    <text class="pin" x="170" y="100" text-anchor="end">GND</text>
+    <text class="pindim" x="170" y="128" text-anchor="end">D15</text>
+    <rect x="176" y="145" width="14" height="14" fill="var(--w-green)"></rect>
+    <text class="pin" x="170" y="156" text-anchor="end">D2</text>
+    <rect x="176" y="173" width="14" height="14" fill="var(--w-purple)"></rect>
+    <text class="pin" x="170" y="184" text-anchor="end">D4</text>
+    <text class="pindim" x="170" y="212" text-anchor="end">RX2</text>
+    <text class="pindim" x="170" y="240" text-anchor="end">TX2</text>
+    <rect x="176" y="257" width="14" height="14" fill="var(--w-orange)"></rect>
+    <text class="pin" x="170" y="268" text-anchor="end">D5</text>
+    <rect x="176" y="285" width="14" height="14" fill="var(--w-yellow)"></rect>
+    <text class="pin" x="170" y="296" text-anchor="end">D18</text>
+    <text class="pindim" x="170" y="324" text-anchor="end">D19</text>
+    <text class="pindim" x="170" y="352" text-anchor="end">D21</text>
+    <text class="pindim" x="170" y="380" text-anchor="end">RX0</text>
+    <text class="pindim" x="170" y="408" text-anchor="end">TX0</text>
+    <text class="pindim" x="170" y="436" text-anchor="end">D22</text>
+    <rect x="176" y="453" width="14" height="14" fill="var(--w-blue)"></rect>
+    <text class="pin" x="170" y="464" text-anchor="end">D23</text>
+  </g>
+
+  <!-- GC9A01 header -->
+  <g>
+    <rect x="566" y="108" width="14" height="176" fill="var(--sunk)" stroke="var(--rule)"></rect>
+    <rect x="566" y="113" width="14" height="14" fill="var(--w-red)"></rect>
+    <text class="pin" x="586" y="124">VCC</text>
+    <rect x="566" y="138" width="14" height="14" fill="var(--w-black)"></rect>
+    <text class="pin" x="586" y="149">GND</text>
+    <rect x="566" y="163" width="14" height="14" fill="var(--w-yellow)"></rect>
+    <text class="pin" x="586" y="174">SCL</text>
+    <rect x="566" y="188" width="14" height="14" fill="var(--w-blue)"></rect>
+    <text class="pin" x="586" y="199">SDA</text>
+    <rect x="566" y="213" width="14" height="14" fill="var(--w-green)"></rect>
+    <text class="pin" x="586" y="224">DC</text>
+    <rect x="566" y="238" width="14" height="14" fill="var(--w-orange)"></rect>
+    <text class="pin" x="586" y="249">CS</text>
+    <rect x="566" y="263" width="14" height="14" fill="var(--w-purple)"></rect>
+    <text class="pin" x="586" y="274">RST</text>
+  </g>
+
+  <text class="tag" x="58" y="470" fill="var(--brass)">D2 and D5 are</text>
+  <text class="tag" x="58" y="482" fill="var(--brass)">strapping pins</text>
+</svg>
+</div>
+
+<p>Every pin the display needs is on the <strong>same ESP32 header</strong>, which is the one
+convenience this board gives you: one ribbon of seven wires, no reaching round the back. The
+dimmed pins between them are untouched.</p>
+
+<div class="card warn">
+  <h3>Match by label, not by position</h3>
+  <p>Both boards come from a dozen makers and the header order is not standard. The one above is
+  the common 30-pin DevKit layout and the usual GC9A01 order, but <strong>find every pin by what
+  is printed next to it</strong>.</p>
+  <p>The display's names vary too, for the same signals: <code>SCL</code> is sometimes
+  <code>CLK</code>, <code>SDA</code> is <code>DIN</code>, <code>RES</code> is <code>RST</code>,
+  and <code>BLK</code> is <code>BL</code>. Check whether yours is a 3.3 V part or 3.3/5 V before
+  you put 3.3 V on <code>VCC</code>.</p>
+</div>
+
+<div class="scroll">
+<table>
+  <caption>Same on all six. Use the same colours every time so a swapped wire is obvious.</caption>
+  <thead><tr><th>GC9A01 pin</th><th>ESP32 pin</th><th>What it is</th><th>Colour</th></tr></thead>
+  <tbody>
+    <tr><td class="n">VCC</td><td class="n">3V3</td><td>3.3 V</td><td>Red</td></tr>
+    <tr><td class="n">GND</td><td class="n">GND</td><td>Ground</td><td>Black</td></tr>
+    <tr><td class="n">SCL</td><td class="n">GPIO18</td><td>VSPI clock (may be marked CLK)</td><td>Yellow</td></tr>
+    <tr><td class="n">SDA</td><td class="n">GPIO23</td><td>VSPI data (may be marked DIN)</td><td>Blue</td></tr>
+    <tr><td class="n">DC</td><td class="n">GPIO2</td><td>Data/command</td><td>Green</td></tr>
+    <tr><td class="n">CS</td><td class="n">GPIO5</td><td>Chip select</td><td>Orange</td></tr>
+    <tr><td class="n">RST</td><td class="n">GPIO4</td><td>Reset (may be marked RES)</td><td>Purple</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="card note">
+  <h3>No BLK means the backlight is always on</h3>
+  <p>The 7-pin boards wire the backlight to VCC on the module, so there is no pin for it and
+  nothing to connect. That is one wire fewer, and one thing you cannot change later: the screen
+  runs at full brightness whenever it is powered. Six of them in a dark room is brighter than it
+  sounds.</p>
+  <p>If that turns out to be too much, the display driver has no brightness register, so the fix
+  is either to dim the image in the firmware — draw the photo darker — or to buy the 8-pin
+  variant, which brings BLK out so it can be tied to a PWM pin.</p>
+</div>
+
+<p>GPIO2 and GPIO5 are boot strapping pins. The display's inputs are high impedance so this
+wiring boots normally, but if an upload ever fails, pull the DC wire off GPIO2 while flashing.
+Find every pin by its printed label rather than its position — header order differs between
+makers on both the ESP32 boards and the displays.</p>
+
+<div class="foot">
+  <p><strong>Untested on hardware.</strong> This layout has not been built. The pin assignments
+  come from the firmware and from Circuit Diagram Rev. 2, which were checked against the Pico
+  pinout and Pololu's A4988 page; the board placement is derived from the standard 0.1&nbsp;in
+  breadboard geometry and your boards' photographed layout. Dry-fit every part before soldering,
+  and measure your own board's row count and the driver's pin spacing first.</p>
+  <p>Weasley Clock · companion to Circuit Diagram Rev. 2 and Hardware Plan Rev. 15</p>
+</div>
+
+</div>
+</body>
+</html>
