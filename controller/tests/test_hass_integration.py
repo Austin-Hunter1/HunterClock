@@ -2,10 +2,18 @@
 
 Apple has no public Find My API, so the route from an iPhone to this clock runs
 Find My -> iCloud -> Home Assistant's iCloud integration -> a ``device_tracker``
-entity -> this source.  That makes the exact shape of a Home Assistant
-``device_tracker`` payload part of the contract, so these tests serve the real
-thing: the attribute names, the ``source_type``, the ISO timestamps and the
-failure modes that integration actually produces.
+entity -> a ``person`` entity -> this source.  That makes the exact shape of
+those payloads part of the contract, so these tests serve the real thing: the
+attribute names, the ``source_type``, the ISO timestamps and the failure modes
+that integration actually produces.
+
+The fake serves ``person.`` entities, because that is what
+``config/clock.example.yaml`` points at and therefore what most clocks will
+actually poll.  A person entity is Home Assistant's own aggregate over
+somebody's trackers and carries the same ``latitude``/``longitude``, plus a
+``source`` naming the tracker it is currently following.  The bare
+``device_tracker`` payload is covered too -- somebody with no person entity
+has to use one -- but it is no longer the default.
 
 The fake is a FastAPI app driven through httpx's ASGI transport, so the real
 HTTP code path runs -- headers, status codes, JSON decoding -- without a port.
@@ -26,12 +34,12 @@ TOKEN = "a-long-lived-access-token"
 
 # Positions from the spec's table, so the angles are checkable.
 POSITIONS = {
-    "device_tracker.becky_iphone": (44.9109, -93.5017, 65),
-    "device_tracker.evan_iphone": (52.2297, 21.0122, 120),
-    "device_tracker.elijah_iphone": (44.9537, -93.0900, 35),
-    "device_tracker.caleb_iphone": (41.8661, -88.1070, 1500),
-    "device_tracker.austin_iphone": (40.0150, -105.2705, 10),
-    "device_tracker.micah_iphone": (44.5646, -123.2620, 65),
+    "person.becky": (44.9109, -93.5017, 65),
+    "person.evan": (52.2297, 21.0122, 120),
+    "person.elijah": (44.9537, -93.0900, 35),
+    "person.caleb": (41.8661, -88.1070, 1500),
+    "person.austin": (40.0150, -105.2705, 10),
+    "person.micah": (44.5646, -123.2620, 65),
 }
 
 
@@ -69,12 +77,40 @@ def device_tracker_state(entity_id: str, lat, lon, accuracy, **overrides):
     return state
 
 
+def person_state(entity_id: str, lat, lon, accuracy, **overrides):
+    """A payload shaped like a Home Assistant ``person`` entity.
+
+    The same position attributes a tracker carries, plus the two that make a
+    person entity worth preferring: ``source``, the tracker it is following at
+    this moment, and ``device_trackers``, every tracker it could fall back to.
+    """
+    who = entity_id.split(".")[1]
+    state = device_tracker_state(entity_id, lat, lon, accuracy)
+    state["attributes"] = {
+        "editable": True,
+        "id": who,
+        "latitude": lat,
+        "longitude": lon,
+        "gps_accuracy": accuracy,
+        "source": f"device_tracker.{who}_iphone",
+        "device_trackers": [
+            f"device_tracker.{who}_iphone",
+            f"device_tracker.{who}_app",
+        ],
+        "user_id": None,
+        "friendly_name": who.title(),
+    }
+    state["attributes"].update(overrides.pop("attributes", {}))
+    state.update(overrides)
+    return state
+
+
 class FakeHomeAssistant:
     """A Home Assistant that serves whatever the test tells it to."""
 
     def __init__(self):
         self.states = {
-            entity: device_tracker_state(entity, lat, lon, acc)
+            entity: person_state(entity, lat, lon, acc)
             for entity, (lat, lon, acc) in POSITIONS.items()
         }
         self.requests: list[str] = []
@@ -140,11 +176,52 @@ async def test_coordinates_and_accuracy_survive_the_round_trip(hass):
     assert by_slug["austin"].lat == pytest.approx(40.0150)
     assert by_slug["austin"].lon == pytest.approx(-105.2705)
     assert by_slug["austin"].accuracy_m == 10
-    assert by_slug["austin"].battery == 82
     assert by_slug["austin"].source == "hass"
 
 
+async def test_a_person_entity_carries_no_battery_level(hass):
+    """The price of preferring a person entity, and it is worth knowing.
+
+    A Home Assistant ``person`` entity aggregates position and nothing else:
+    it has no ``battery_level``, because it has no single device to have the
+    battery of.  So pointing a hand at ``person.austin`` instead of
+    ``device_tracker.austin_iphone`` buys surviving a Find My outage and costs
+    the battery reading in the UI.  Written down here rather than discovered
+    later when somebody asks why the percentages went away.
+    """
+    await hass.poll_once()
+    by_slug = dict(hass.fixes_seen)
+    assert by_slug["austin"].battery is None
+
+
+async def test_a_device_tracker_does_carry_a_battery_level(hass):
+    """...and the other half of that trade, for somebody who wants it."""
+    hass.config.people[4].hass_entity = "device_tracker.austin_iphone"
+    hass.fake.states["device_tracker.austin_iphone"] = device_tracker_state(
+        "device_tracker.austin_iphone", 40.0150, -105.2705, 10
+    )
+    await hass.poll_once()
+    by_slug = dict(hass.fixes_seen)
+    assert by_slug["austin"].battery == 82
+
+
 async def test_the_entity_id_is_carried_for_the_log(hass):
+    """And, for a person entity, which tracker is actually driving the hand.
+
+    This is the line that reveals Find My has quietly stopped answering and
+    the companion app has been carrying Evan's hand for a fortnight, which is
+    otherwise invisible without going and looking in Home Assistant.
+    """
+    await hass.poll_once()
+    by_slug = dict(hass.fixes_seen)
+    assert by_slug["evan"].topic == "person.evan via device_tracker.evan_iphone"
+
+
+async def test_a_bare_tracker_is_logged_as_itself(hass):
+    hass.config.people[1].hass_entity = "device_tracker.evan_iphone"
+    hass.fake.states["device_tracker.evan_iphone"] = device_tracker_state(
+        "device_tracker.evan_iphone", 52.2297, 21.0122, 120
+    )
     await hass.poll_once()
     by_slug = dict(hass.fixes_seen)
     assert by_slug["evan"].topic == "device_tracker.evan_iphone"
@@ -181,8 +258,8 @@ async def test_a_device_with_no_coordinates_is_rejected(hass):
     Turning that into a position at 12 o'clock would be indistinguishable from
     a real sighting at home, which is worse than showing nothing.
     """
-    hass.fake.states["device_tracker.micah_iphone"] = {
-        "entity_id": "device_tracker.micah_iphone",
+    hass.fake.states["person.micah"] = {
+        "entity_id": "person.micah",
         "state": "unavailable",
         "attributes": {"source_type": "gps", "friendly_name": "Micah iPhone"},
         "last_updated": datetime.now(UTC).isoformat(),
@@ -195,7 +272,7 @@ async def test_a_device_with_no_coordinates_is_rejected(hass):
 
 async def test_one_bad_entity_does_not_stop_the_others(hass):
     """A single phone dropping off Find My must not blind the whole clock."""
-    del hass.fake.states["device_tracker.caleb_iphone"]
+    del hass.fake.states["person.caleb"]
     accepted = await hass.poll_once()
     assert accepted == 5
     assert hass.errors == 1
@@ -214,7 +291,7 @@ async def test_home_assistant_being_down_is_survivable(hass):
 async def test_a_coarse_find_my_fix_is_still_passed_to_the_filter(hass):
     """Find My can report kilometre-scale accuracy; the source hands it on and
     the engine's accuracy filter is what decides, so the two stay separable."""
-    hass.fake.states["device_tracker.caleb_iphone"]["attributes"]["gps_accuracy"] = 5000
+    hass.fake.states["person.caleb"]["attributes"]["gps_accuracy"] = 5000
     await hass.poll_once()
     by_slug = dict(hass.fixes_seen)
     assert by_slug["caleb"].accuracy_m == 5000
@@ -223,7 +300,7 @@ async def test_a_coarse_find_my_fix_is_still_passed_to_the_filter(hass):
 async def test_the_timestamp_comes_from_home_assistant_not_from_now(hass):
     """Staleness has to measure when the phone was seen, not when we polled."""
     old = datetime(2026, 11, 1, 12, 0, tzinfo=UTC)
-    hass.fake.states["device_tracker.evan_iphone"]["last_updated"] = old.isoformat()
+    hass.fake.states["person.evan"]["last_updated"] = old.isoformat()
     await hass.poll_once()
     by_slug = dict(hass.fixes_seen)
     assert by_slug["evan"].ts == pytest.approx(old.timestamp(), abs=1)
@@ -235,11 +312,11 @@ async def test_only_configured_people_are_polled(sim_config, monkeypatch):
     sim_config.sources.hass.enabled = True
     for person in sim_config.people:
         person.hass_entity = None
-    sim_config.people[0].hass_entity = "device_tracker.becky_iphone"
+    sim_config.people[0].hass_entity = "person.becky"
     fake = FakeHomeAssistant()
     source = HassSource(sim_config, lambda s, f: None, client_factory=fake.client_factory)
     await source.poll_once()
-    assert fake.requests == ["device_tracker.becky_iphone"]
+    assert fake.requests == ["person.becky"]
 
 
 # -- end to end through the engine -------------------------------------------
@@ -284,10 +361,10 @@ async def test_a_vague_find_my_fix_is_filtered_before_it_moves_a_hand(stack, mon
     settled = stack.engine.state("austin").target_deg
 
     # Now Find My loses the plot: a fix on the far side of the world, 9 km wide.
-    fake.states["device_tracker.austin_iphone"]["attributes"].update(
+    fake.states["person.austin"]["attributes"].update(
         {"latitude": -31.95, "longitude": 115.86, "gps_accuracy": 9000}
     )
-    fake.states["device_tracker.austin_iphone"]["last_updated"] = datetime.now(
+    fake.states["person.austin"]["last_updated"] = datetime.now(
         UTC
     ).isoformat()
     await source.poll_once()

@@ -31,6 +31,11 @@ enable SSH. That gets you in without a screen.
 Higher priority wins when both are in range. Get the destination network's name
 and password from whoever lives there **now**, not when the clock arrives.
 
+Saving both is the first line of defence, not the only one: if the destination
+house later changes its password, every saved network is wrong at once. Section
+11 is the way back in when that happens, and it needs a label written before
+the clock travels.
+
 ### 1.3 Join Tailscale
 
 ```bash
@@ -51,8 +56,14 @@ cd HunterClock
 
 It creates `.venv`, installs the controller, copies `config/clock.example.yaml`
 to `config/clock.yaml` and `.env.example` to `.env`, adds `hunterboys` to
-`dialout`, installs the systemd unit, turns on persistent journald and the Pi's
-hardware watchdog. It is safe to run again after any `git pull`.
+`dialout`, installs both systemd units, turns on persistent journald and the
+Pi's hardware watchdog. It is safe to run again after any `git pull`.
+
+**It prints a hotspot passphrase once, in yellow. Write it down.** That is the
+only way back into the clock if the house WiFi password ever changes; section
+11 is what it is for. It is saved in `.env` as `CLOCK_HOTSPOT_PASSWORD` and is
+not regenerated on later runs, so you can fetch it again — but only while you
+can still reach the Pi.
 
 ### 1.5 Secrets
 
@@ -64,6 +75,10 @@ python3 -c "import secrets; print(secrets.token_hex(32))"   # for CLOCK_SECRET_K
 
 `.env` is mode 600 and gitignored. Nothing secret ever goes in
 `config/clock.yaml` except the password *hash*.
+
+`.env` also holds `CLOCK_HOTSPOT_PASSWORD`, which `install.sh` generated. It is
+the one secret here that has to exist in the physical world too — on a label
+inside the cabinet (section 11).
 
 If Mosquitto does not yet have the `clock` user:
 
@@ -162,20 +177,34 @@ active.
 
 ## 2.2 Connecting Find My
 
-**Apple has no public Find My API.** Nothing can query it directly, and anything
-claiming otherwise is logging into iCloud with your password. So "Find My" here
-means going through Home Assistant, which does that part and gives you a clean
-entity to read.
+This is the section to read if the question is "can the clock just use Find My
+iPhone?". The short answer is yes, but not directly, and not as the only thing.
 
-Three routes. Not really alternatives: a primary and two supplements.
+**Apple has no public Find My API.** There is no key you can apply for, no
+endpoint, no OAuth. Everything that claims to read Find My is doing one of two
+things: logging into iCloud with your Apple Account password and pretending to
+be a browser, or joining Apple's Find My *network* with reverse-engineered
+crypto. The first is what gets accounts locked and is not going in this
+project. So "Find My" here means **Home Assistant does the talking to Apple,
+and the clock reads a clean entity out of Home Assistant.**
 
-### Route 1 - OwnTracks. Use this one.
+Three routes. They are not alternatives — route 1 is the foundation, route 2
+is the one that needs nothing installed on the phones, route 3 is the escape
+hatch. Run all three if you like; `sources.priority` decides who wins.
+
+| | What it needs | Reliability | Battery | Use it for |
+|---|---|---|---|---|
+| **1. OwnTracks** | an app on each phone, Tailscale on each phone | high | you control the interval | everyone who will install an app |
+| **2. Find My via Home Assistant** | a Home Assistant, an Apple Account | breaks every few weeks | Apple's | everyone who will not |
+| **3. Generic MQTT** | anything that can POST or publish | whatever you build | — | one-offs and odd cases |
+
+### Route 1 — OwnTracks. Use this one.
 
 A free app on each phone that publishes straight to the Pi's MQTT broker. No
-Apple account, no middleman, no rate limits, and it is the source this clock was
-built around.
+Apple account, no middleman, no rate limits, and it is the source this clock
+was built around.
 
-On each phone: install OwnTracks, then **Settings -> Connection**:
+On each phone: install OwnTracks, then **Settings → Connection**:
 
 | Field | Value |
 |---|---|
@@ -195,45 +224,127 @@ the Logs page: the fix should arrive, be accepted, and command a move.
 
 The catch: the phones have to reach the broker. Inside the house that is the
 local network; outside it they need Tailscale on the phone too, or the broker
-exposed to the internet, which you do not want. Install Tailscale on the phones.
+exposed to the internet, which you do not want. **Install Tailscale on the
+phones.** It is free for personal use and it is the same thing you already
+need to reach the clock yourself.
 
-### Route 2 - Find My, through Home Assistant
+### Route 2 — Find My, through Home Assistant
 
 What `docs/hardware-plan.html` planned for, and worth having, because everyone
 already carries an iPhone and nobody has to keep an app alive.
 
-1. **Run Home Assistant somewhere.** It can be the same Pi, but a separate box
-   is kinder: Home Assistant is a much bigger thing than this controller, and
-   you do not want its upgrades taking the clock down with them.
-2. **Add the iCloud integration.** Settings -> Devices & services -> Add
-   integration -> Apple iCloud. It wants the Apple ID and a 2FA code. Each
-   person needs their own account added, or one Family Sharing account that can
-   see the others.
-3. **Check what you got**, before editing any config:
+**1. Run Home Assistant somewhere.** It can be the same Pi, but a separate box
+is kinder: Home Assistant is a much bigger thing than this controller, and you
+do not want its upgrades taking the clock down with them.
+
+**2. Add the Apple Account integration.** Settings → Devices & services → Add
+integration → **Apple iCloud** (Apple now calls an Apple ID an "Apple
+Account"; Home Assistant's integration is still listed under iCloud). It wants
+the Apple Account and a six-digit code from a trusted device. Each person needs
+their own account added, or one Family Sharing account that can see the others.
+
+Two things Home Assistant's own documentation says about it, both of which
+matter here:
+
+* **The device must be registered with Find My.** A phone with Find My
+  iPhone switched off is invisible to this route entirely.
+* **It polls on a dynamic interval**, not a fixed one — Home Assistant varies
+  it per device based on which zone the device is in, how far from home it is
+  and its battery level. So a phone that has gone a long way away is not
+  necessarily reporting more often, and a slow-moving hand is not by itself a
+  fault.
+
+You may also get mail from Apple saying someone signed into your account. That
+is Home Assistant, and Home Assistant's docs warn about it.
+
+**3. Check what you got, before editing any config.**
 
 ```bash
 export HASS_TOKEN='...'
 python tools/hass_check.py --url http://homeassistant.local:8123
 ```
 
-The token comes from Home Assistant: your profile (bottom left) -> Security ->
-Long-lived access tokens. The tool prints every tracker, whether it carries
-coordinates, and where each one would put its hand right now using the clock's
-own mapping. It only reads, and it never prints the token. A line reading
-`no ... state=home, no coordinates` is a tracker that cannot drive a hand: a
-router-based one, or a phone that is offline.
+The token comes from Home Assistant: your profile (bottom left) → Security →
+Long-lived access tokens. The tool prints every entity that could drive a
+hand, whether it carries coordinates, and **where each one would put its hand
+right now using the clock's own mapping** — so a number that looks wrong there
+is wrong. It only reads, and it never prints the token.
 
-4. Put the entity ids it suggests into `config/clock.yaml` under each person's
-   `hass_entity`, set `sources.hass.enabled: true`, and restart.
+A line reading `state=home, no coordinates` is a tracker that cannot drive a
+hand: a router-based one, or a phone that is offline.
 
-**Expect this to break every few weeks.** Apple rate-limits iCloud and a 2FA
-re-prompt stops it dead until somebody re-authenticates in Home Assistant. The
-hardware plan says the same, which is why this is route 2. When it does break
-the hands go `stale` and hold their last position; they do not jump to nonsense.
+**4. Point each person at a `person.` entity, not a `device_tracker.`**
 
-### Route 3 - anything else, through generic MQTT
+This is the part that is easy to get wrong and only hurts months later.
 
-Any other source of a position - an Apple Shortcuts automation, a Home
+Home Assistant has two kinds of entity that carry a position:
+
+`device_tracker.austin_iphone`
+: One specific source. When iCloud stops answering — see below — this goes
+  quiet, and Austin's hand goes stale even though the Home Assistant companion
+  app on the same phone is still reporting perfectly well.
+
+`person.austin`
+: Home Assistant's own aggregate of *everything* that knows where Austin is,
+  following whichever is currently reporting. When Find My stops answering it
+  falls back by itself.
+
+So `config/clock.example.yaml` points at `person.<name>`, and `hass_check.py`
+will tell you if you have wired somebody to a bare tracker that a person entity
+already covers.
+
+**The one thing you give up** by doing this: a person entity carries no battery
+level, because it has no single device to have a battery. The hand still moves
+correctly; the UI just will not show that phone's percentage from this source.
+OwnTracks still reports battery. If you would rather have the battery reading
+than the fallback, point at the tracker — but know which you are choosing.
+
+The clock records which tracker a person entity is following, so the Logs page
+shows `person.austin via device_tracker.austin_iphone`. That line is how you
+find out Find My quietly stopped three weeks ago and the companion app has
+been carrying the hand.
+
+Put the entity ids into `config/clock.yaml` under each person's `hass_entity`,
+set `sources.hass.enabled: true`, and restart.
+
+**5. Expect this to break every few weeks.** Apple rate-limits iCloud, and a
+two-factor re-prompt stops it dead until somebody re-authenticates in Home
+Assistant. `docs/hardware-plan.html` said the same, which is why this is route
+2 and not route 1.
+
+When it does break:
+
+* the hands go `stale` and **hold their last position** — they do not jump to
+  nonsense, and they do not go to 12;
+* Home Assistant shows the integration needing re-authentication;
+* fix it there (enter a fresh six-digit code), and the clock picks up again on
+  its next poll with no restart.
+
+If you set up alerting (§2.1), a `stale` person is one of the conditions that
+can notify you, so you find out without looking.
+
+#### What about iCloud3, hass-FindMy and the rest?
+
+There are third-party Home Assistant integrations that go at Apple harder than
+the official one — iCloud3, `hass-FindMy`, and others. Some actively request a
+location rather than reading whatever Apple last published; some reach Apple's
+Find My *network* and can see AirTags.
+
+They are not wired in here and this project does not recommend one. They are
+community integrations with their own update cadence and their own ways of
+annoying Apple, and the clock cannot tell the difference anyway: **anything
+that produces a Home Assistant entity with `latitude` and `longitude` works
+with route 2 unchanged.** If you install one, point `hass_entity` at whatever
+entity it creates and run `hass_check.py` to confirm the clock can read it.
+
+One caution if you go looking: a project's README is marketing. At least one
+claims the official integration only reads a cached position, which Home
+Assistant's own documentation contradicts. Check against the official docs
+before switching away from something that works.
+
+### Route 3 — anything else, through generic MQTT
+
+Any other source of a position — an Apple Shortcuts automation, a Home
 Assistant automation that pushes instead of waiting to be polled, a script:
 
 ```bash
@@ -242,28 +353,39 @@ mosquitto_pub -h weasley-clock -u clock -P "$MQTT_PASSWORD" \
   -m '{"lat":40.0150,"lon":-105.2705,"acc":30}'
 ```
 
-A Home Assistant automation doing the same, which skips the polling entirely:
+A Home Assistant automation doing the same, which **skips the polling
+entirely** — the clock hears about a move when it happens instead of up to
+`poll_interval_s` later:
 
 ```yaml
 automation:
   - alias: Push Austin to the clock
     trigger:
       - platform: state
-        entity_id: device_tracker.austin_iphone
+        entity_id: person.austin
     action:
       - service: mqtt.publish
         data:
           topic: clock/location/austin
           payload: >-
-            {"lat": {{ state_attr('device_tracker.austin_iphone','latitude') }},
-             "lon": {{ state_attr('device_tracker.austin_iphone','longitude') }},
-             "acc": {{ state_attr('device_tracker.austin_iphone','gps_accuracy') | default(100) }}}
+            {"lat": {{ state_attr('person.austin','latitude') }},
+             "lon": {{ state_attr('person.austin','longitude') }},
+             "acc": {{ state_attr('person.austin','gps_accuracy') | default(100) }}}
+```
+
+Guard it against the attribute being `null`, or you will publish
+`{"lat": None}` every time that phone goes offline:
+
+```yaml
+    condition:
+      - condition: template
+        value_template: "{{ state_attr('person.austin','latitude') is not none }}"
 ```
 
 ### Which source wins
 
 All of them can run at once. `sources.priority` decides, defaulting to
-`[manual, owntracks, generic_mqtt, hass]` - a manual override beats everything,
+`[manual, owntracks, generic_mqtt, hass]` — a manual override beats everything,
 then OwnTracks, with Find My last because it is the least reliable. In practice
 whichever source produces an acceptable fix most recently moves the hand, and
 the filters reject the stale and the vague wherever they came from.
@@ -280,6 +402,9 @@ afternoon and see whether OwnTracks alone keeps up.
   (2000 m) is rejected, and `hass_check.py` flags those in advance.
 * **A hand only moves for a change over 0.5 degrees.** On a log scale that is a
   real distance at range: crossing town moves a hand, crossing a room does not.
+* **Nobody's password is in this repo.** The Home Assistant token lives in
+  `.env` as `HASS_TOKEN`, the broker password as `MQTT_PASSWORD`, and the
+  Apple Account credentials never leave Home Assistant.
 
 ---
 
@@ -466,7 +591,159 @@ real MQTT password and a real password hash are both absent from it.
 
 ---
 
-## 11. Reaching someone on site
+## 11. The clock has fallen off the WiFi
+
+If the house changes its WiFi password, Tailscale goes with it and there is no
+way in at all: no screen, no keyboard, no network, and nobody on site who can
+read an IP address off anything. That is what the fallback setup hotspot is
+for. It is the only part of this system designed to be operated by somebody who
+has never heard of it.
+
+### What it does on its own
+
+Nothing, almost all the time. The clock watches its own network and only acts
+when it has been off for **five minutes**:
+
+```
+on the WiFi ──falls off──> wait 5 min ──> puts up "weasley-clock-setup"
+     ^                          |                      │        ^
+     │                          └──comes back──┐       │        │
+     │                                         │  nobody comes for 10 min
+     └─────────comes back───────── retries saved networks <─────┘
+                              for 3 min, then puts it back up
+```
+
+The cycling is the important part, and it is why this is safe to leave running.
+**The Pi has one WiFi radio**, so while the setup network is up the clock is
+offline by definition. A hotspot that latched on would turn a five-minute
+router reboot into a clock that is dead until somebody drives to it. Instead it
+keeps giving up and retrying, so:
+
+* a router reboot or a brief outage never raises it at all;
+* a long power cut raises it, nobody comes, and when the router returns the
+  clock finds it **by itself** within about thirteen minutes;
+* it only stays up while somebody is actually using the page.
+
+It also never raises the hotspot if the Pi is on **ethernet** — a wired clock
+is reachable over Tailscale and needs no rescuing.
+
+### Before the clock travels
+
+**1. Check the passphrase exists.** `deploy/install.sh` generates one into
+`.env` as `CLOCK_HOTSPOT_PASSWORD` and prints it once. If you need it again:
+
+```bash
+grep CLOCK_HOTSPOT_PASSWORD ~/HunterClock/.env
+```
+
+With no passphrase set the clock **will not raise the hotspot at all**, which
+is deliberate: an open network called `weasley-clock-setup` would let any
+passer-by read the house WiFi password straight back out of the setup page.
+
+**2. Write the label and put it inside the cabinet.** Not in a password
+manager, not in this repo — on a piece of paper where the person who needs it
+will be standing:
+
+```
+    If the clock stops working:
+      join WiFi network:  weasley-clock-setup
+      password:           <the one from .env>
+      a page will appear. Pick the house WiFi and type its password.
+```
+
+**3. Prove it comes up on this actual Pi**, because none of this has ever run
+on real hardware:
+
+```bash
+sudo ~/HunterClock/.venv/bin/python -m clockd.hotspot --once --force
+```
+
+That raises the access point immediately and holds it until you press ctrl-C.
+**It takes the clock off the WiFi while it runs**, so do this over a wired
+connection or while standing next to it, not over Tailscale from another state.
+Look for the network on a phone, join it, check the page appears on its own,
+then ctrl-C and confirm the clock rejoins the WiFi.
+
+### Talking somebody through it on the phone
+
+This is the script. It needs no technical vocabulary and no shell.
+
+1. "On your phone, open WiFi settings and look for a network called
+   **weasley-clock-setup**." *(If it is not there, see below.)*
+2. "Join it. The password is on the label inside the clock."
+3. "A page should pop up by itself. If it does not, open a browser and go to
+   **10.42.0.1**."
+4. "Pick your home WiFi from the list and type its password. There is a
+   checkbox to show the password — use it."
+5. "Press **Connect the clock**. The setup network will disappear. That is
+   what is supposed to happen."
+6. "If the setup network comes back in a few minutes, the password was not
+   right. Join it again and the page will say what went wrong."
+
+**You cannot watch this happen.** Joining the house network tears down the
+access point that was serving the page, so there is no "success" screen and
+there cannot be one. The feedback is whether the setup network stays gone.
+
+Give it a couple of minutes, then check whether the clock is back on Tailscale.
+
+### If the setup network is not there
+
+In order:
+
+* **Has it been five minutes?** It will not appear sooner.
+* **Is the clock actually off the WiFi?** If it is on ethernet, or the WiFi is
+  fine and only the internet is down, the hotspot deliberately does not come
+  up — and would not help, because it fixes credentials, not an ISP.
+* **Is there power?** The hands will be somewhere, but a dark Pi is a dark Pi.
+  Ask them to unplug it for ten seconds and plug it back in, then wait the
+  five minutes.
+* **Is `CLOCK_HOTSPOT_PASSWORD` set?** With none, there is no hotspot. You
+  cannot fix this remotely if you are already locked out — it is why step 1
+  above is step 1.
+
+### Checking on it remotely, while you still can
+
+```bash
+# what it would do right now; changes nothing, safe on the live clock
+~/HunterClock/.venv/bin/python -m clockd.hotspot --status
+
+# has it ever had to act?
+journalctl -u clock-hotspot -n 50 --no-pager
+```
+
+`--status` prints whether `nmcli` is present, whether the passphrase is set,
+whether the clock is online, and which networks are saved with what priority.
+If it says `blocked:` anything, the hotspot is not going to happen and that
+line says why.
+
+To see the page itself without a Pi — worth doing once, so you know what you
+are describing over the phone:
+
+```bash
+python -m clockd.hotspot --demo      # then open http://127.0.0.1:8081/
+```
+
+### Turning it off
+
+Tailscale plus two pre-saved networks (§1.2) covers much of the same ground. If
+you would rather not have a service that can take the clock off the WiFi:
+
+```bash
+sudo systemctl disable --now clock-hotspot
+```
+
+or set `enabled: false` in `config/hotspot.yaml`.
+
+### What has not been tested
+
+No Pi has run any of this. In particular, whether the Pi's WiFi firmware will
+act as an access point at all on this board, whether the captive-portal popup
+fires on a given iOS or Android version, and whether the timings are right are
+all unverified. `PROGRESS.md` keeps the full list.
+
+---
+
+## 12. Reaching someone on site
 
 Keep this filled in:
 
@@ -475,6 +752,7 @@ Keep this filled in:
 | | | can power-cycle the Pi |
 | | | can open `/assist` on a phone |
 | | | knows the WiFi password |
+| | | can find the label inside the cabinet (section 11) |
 
 What to ask them for, in order of how often it helps:
 
@@ -483,12 +761,16 @@ What to ask them for, in order of how often it helps:
 3. "Can you open this link on your phone and tap the buttons?" (`/assist`)
 4. "Is the USB cable between the two small boards still plugged in at both ends?"
 
-Do not ask them to type commands. If it needs a shell, it needs Tailscale, and
-if Tailscale is down, nothing they can type will help.
+Do not ask them to type commands. If it needs a shell, it needs Tailscale.
+
+If Tailscale is down because the clock is off the WiFi, that is section 11:
+the clock puts up its own network and somebody standing there can fix it from
+a phone. That is the one case where somebody on site can do something you
+cannot do from Boulder.
 
 ---
 
-## 12. Quick reference
+## 13. Quick reference
 
 ```bash
 # status and logs
@@ -511,6 +793,12 @@ ls -l /dev/ttyACM* /dev/weasley-pico
 
 # re-upload the firmware
 cd ~/HunterClock && make firmware-upload
+
+# the fallback setup hotspot (section 11)
+python -m clockd.hotspot --status           # what it would do; changes nothing
+journalctl -u clock-hotspot -n 50           # has it ever had to act?
+python -m clockd.hotspot --demo             # look at the page, no Pi needed
+sudo python -m clockd.hotspot --once --force  # raise it NOW (takes WiFi down)
 
 # try it with no hardware at all
 .venv/bin/python -m clockd.cli --sim --sim-fixtures --port 8081

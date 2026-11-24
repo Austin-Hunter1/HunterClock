@@ -1,7 +1,10 @@
 """Home Assistant REST source (optional, P2, lowest priority).
 
 Polls ``GET /api/states/<entity_id>`` with a long-lived access token and reads
-the ``latitude``/``longitude`` attributes that ``device_tracker`` entities carry.
+the ``latitude``/``longitude`` attributes.  This is the route an iPhone's
+location takes to the clock, because **Apple has no public Find My API**: Home
+Assistant's iCloud integration does the talking to Apple and leaves a clean
+entity for us to read.  See ``docs/RUNBOOK.md`` section 2.2.
 
 The token comes from the environment (``HASS_TOKEN`` by default) and is never
 written to the config file or the logs.  ``docs/hardware-plan.html`` notes that
@@ -9,11 +12,23 @@ Home Assistant's iCloud/Find My integration is flaky -- Apple rate-limits it and
 2FA re-prompts break it every few weeks -- which is exactly why this is the
 lowest-priority source and OwnTracks is the one to trust.
 
+**Point ``hass_entity`` at a ``person.`` entity, not a ``device_tracker.``.**
+Both work here and carry the same ``latitude``/``longitude`` attributes, but a
+person entity is Home Assistant's own aggregate of everything that knows where
+somebody is, and it picks whichever is currently reporting.  That matters for
+the failure this source is known for: when iCloud stops answering, a person
+entity backed by both Find My and the Home Assistant companion app keeps
+producing fixes, where a hand pointed straight at ``device_tracker.x_iphone``
+simply goes stale.  A person entity also names its current tracker in a
+``source`` attribute, which is recorded on the fix so the Logs page can say
+which one a hand is actually following today.
+
 A ``device_tracker`` with ``source_type: gps`` reports ``gps_accuracy`` in
 metres; one tracking by router or by geofence reports no coordinates at all,
 only ``home``/``not_home``, and those are reported as an error rather than
 silently turned into a position at home -- a hand pointing at 12 because Home
-Assistant said "home" would be indistinguishable from a real fix.
+Assistant said "home" would be indistinguishable from a real fix.  A person
+entity whose only tracker is router-based behaves the same way.
 """
 
 from __future__ import annotations
@@ -82,6 +97,14 @@ def parse_hass_state(
         if parsed is not None:
             timestamp = parsed
 
+    # A person entity names the tracker it is currently following. Recording
+    # it means the Logs page can show that Austin's hand is being driven by
+    # the companion app today because Find My stopped answering last Tuesday,
+    # which is otherwise invisible until somebody goes looking in Home
+    # Assistant itself.
+    via = attributes.get("source")
+    origin = f"{entity_id} via {via}" if isinstance(via, str) and via else entity_id
+
     return ParseResult(
         person=person,
         fix=Fix(
@@ -92,7 +115,7 @@ def parse_hass_state(
             received=now,
             accuracy_m=number(attributes.get("gps_accuracy")),
             battery=number(attributes.get("battery_level")),
-            topic=entity_id,
+            topic=origin,
         ),
     )
 

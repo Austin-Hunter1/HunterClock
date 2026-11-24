@@ -47,6 +47,14 @@ home:
 #                     something on the dial
 #   owntracks         matches the MQTT topic owntracks/<user>/<device>;
 #                     device "+" means any device of that user
+#   hass_entity       a Home Assistant entity carrying latitude/longitude.
+#                     Prefer person.<name> over device_tracker.<name>_iphone:
+#                     a person entity is Home Assistant's own aggregate of
+#                     everything that knows where somebody is, so when Find My
+#                     stops answering -- a 2FA re-prompt, Apple rate limiting --
+#                     it falls back to whatever else is still reporting instead
+#                     of letting the hand go stale. Run tools/hass_check.py to
+#                     see what this Home Assistant actually has.
 people:
   - name: Becky
     level: 1
@@ -57,7 +65,7 @@ people:
     fallback_lat: 44.9109
     fallback_lon: -93.5017
     owntracks: { user: becky, device: "+" }
-    hass_entity: device_tracker.becky_iphone
+    hass_entity: person.becky
 
   - name: Evan
     level: 2
@@ -66,7 +74,7 @@ people:
     fallback_lat: 52.2297
     fallback_lon: 21.0122
     owntracks: { user: evan, device: "+" }
-    hass_entity: device_tracker.evan_iphone
+    hass_entity: person.evan
 
   - name: Elijah
     level: 3
@@ -75,7 +83,7 @@ people:
     fallback_lat: 44.9537
     fallback_lon: -93.0900
     owntracks: { user: elijah, device: "+" }
-    hass_entity: device_tracker.elijah_iphone
+    hass_entity: person.elijah
 
   - name: Caleb
     level: 4
@@ -84,7 +92,7 @@ people:
     fallback_lat: 41.8661
     fallback_lon: -88.1070
     owntracks: { user: caleb, device: "+" }
-    hass_entity: device_tracker.caleb_iphone
+    hass_entity: person.caleb
 
   - name: Austin
     level: 5
@@ -93,7 +101,7 @@ people:
     fallback_lat: 40.0150
     fallback_lon: -105.2705
     owntracks: { user: austin, device: "+" }
-    hass_entity: device_tracker.austin_iphone
+    hass_entity: person.austin
 
   - name: Micah
     level: 6
@@ -102,7 +110,7 @@ people:
     fallback_lat: 44.5646
     fallback_lon: -123.2620
     owntracks: { user: micah, device: "+" }
-    hass_entity: device_tracker.micah_iphone
+    hass_entity: person.micah
 
 # All speeds and accelerations are in microsteps and microsteps/s^2.
 # 3200 microsteps = one full turn, so 800 steps/s is a quarter turn per second.

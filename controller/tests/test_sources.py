@@ -22,6 +22,20 @@ def config():
     return load_config(example_config_path())
 
 
+@pytest.fixture
+def tracker_config(config):
+    """A config wiring Caleb to a bare ``device_tracker``.
+
+    The shipped config points everyone at ``person.`` entities, which is the
+    right default (``docs/RUNBOOK.md`` section 2.2).  Somebody with no person
+    entity still has to use a bare tracker, though, so the parse path for one
+    is set up explicitly here rather than borrowed from whatever the example
+    happens to say this month.
+    """
+    config.person("Caleb").hass_entity = "device_tracker.caleb_iphone"
+    return config
+
+
 def owntracks_payload(**overrides):
     """A realistic OwnTracks location message."""
     payload = {
@@ -217,7 +231,7 @@ def test_generic_empty_payload_is_an_error(config):
 # -- Home Assistant ----------------------------------------------------------
 
 
-def test_hass_device_tracker(config):
+def test_hass_device_tracker(tracker_config):
     state = {
         "entity_id": "device_tracker.caleb_iphone",
         "state": "not_home",
@@ -231,7 +245,7 @@ def test_hass_device_tracker(config):
         },
         "last_updated": "2026-11-03T10:00:00+00:00",
     }
-    result = parse_hass_state(state, config, "device_tracker.caleb_iphone")
+    result = parse_hass_state(state, tracker_config, "device_tracker.caleb_iphone")
     assert result.person.name == "Caleb"
     assert result.fix.lat == pytest.approx(41.8661)
     assert result.fix.accuracy_m == 25.0
@@ -240,46 +254,46 @@ def test_hass_device_tracker(config):
     assert result.fix.ts == pytest.approx(1793700000.0, abs=1)
 
 
-def test_hass_router_tracker_is_an_error_not_a_position_at_home(config):
+def test_hass_router_tracker_is_an_error_not_a_position_at_home(tracker_config):
     """'home' with no coordinates must not become a real-looking fix at 12."""
     state = {"state": "home", "attributes": {"source_type": "router"}}
-    result = parse_hass_state(state, config, "device_tracker.caleb_iphone")
+    result = parse_hass_state(state, tracker_config, "device_tracker.caleb_iphone")
     assert result.fix is None
     assert "no latitude/longitude" in result.error
 
 
-def test_hass_unknown_entity_is_an_error(config):
-    result = parse_hass_state({"state": "home"}, config, "device_tracker.nobody")
+def test_hass_unknown_entity_is_an_error(tracker_config):
+    result = parse_hass_state({"state": "home"}, tracker_config, "device_tracker.nobody")
     assert result.fix is None
     assert "no person owns" in result.error
 
 
-def test_hass_without_timestamp_uses_now(config):
+def test_hass_without_timestamp_uses_now(tracker_config):
     state = {"attributes": {"latitude": 1.0, "longitude": 2.0}}
-    result = parse_hass_state(state, config, "device_tracker.caleb_iphone", now=4242.0)
+    result = parse_hass_state(state, tracker_config, "device_tracker.caleb_iphone", now=4242.0)
     assert result.fix.ts == 4242.0
 
 
-def test_hass_unparseable_timestamp_falls_back_to_now(config):
+def test_hass_unparseable_timestamp_falls_back_to_now(tracker_config):
     state = {
         "attributes": {"latitude": 1.0, "longitude": 2.0},
         "last_updated": "not a timestamp",
     }
-    result = parse_hass_state(state, config, "device_tracker.caleb_iphone", now=7.0)
+    result = parse_hass_state(state, tracker_config, "device_tracker.caleb_iphone", now=7.0)
     assert result.fix.ts == 7.0
 
 
-def test_hass_zulu_timestamp(config):
+def test_hass_zulu_timestamp(tracker_config):
     state = {
         "attributes": {"latitude": 1.0, "longitude": 2.0},
         "last_updated": "2026-11-03T10:00:00Z",
     }
-    result = parse_hass_state(state, config, "device_tracker.caleb_iphone")
+    result = parse_hass_state(state, tracker_config, "device_tracker.caleb_iphone")
     assert result.fix.ts == pytest.approx(1793700000.0, abs=1)
 
 
-def test_hass_non_object_state_is_an_error(config):
-    result = parse_hass_state("unavailable", config, "device_tracker.caleb_iphone")
+def test_hass_non_object_state_is_an_error(tracker_config):
+    result = parse_hass_state("unavailable", tracker_config, "device_tracker.caleb_iphone")
     assert result.fix is None
     assert "not an object" in result.error
 
