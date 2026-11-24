@@ -2,7 +2,14 @@
 #
 # Set up the Weasley Clock controller on a Raspberry Pi.
 #
-#   ./deploy/install.sh
+#   ./deploy/install.sh                 everything
+#   ./deploy/install.sh --no-hotspot    everything except the setup hotspot
+#
+# USE --no-hotspot FOR THE FIRST INSTALL ON A PI YOU ARE REACHING OVER THE
+# NETWORK. The hotspot can take the Pi off the WiFi by design -- one radio
+# cannot be an access point and a client at once -- and it has never run on
+# real hardware. Bring it up later, with physical access, per docs/RUNBOOK.md
+# section 11.
 #
 # Idempotent: safe to run again after a git pull, and it will tell you what it
 # changed. It never writes a secret and never overwrites config/clock.yaml.
@@ -21,6 +28,15 @@
 # Tailscale (see deploy/tailscale-setup.sh) or add WiFi (deploy/add-wifi.sh).
 
 set -euo pipefail
+
+WANT_HOTSPOT=1
+for arg in "$@"; do
+  case "${arg}" in
+    --no-hotspot) WANT_HOTSPOT=0 ;;
+    -h|--help) sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "unknown option: ${arg}" >&2; exit 2 ;;
+  esac
+done
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SERVICE_USER="${CLOCK_USER:-$(id -un)}"
@@ -150,14 +166,17 @@ else
     printf 'CLOCK_HOTSPOT_PASSWORD=%s\n' "${HOTSPOT_PASSWORD}" >> "${REPO_ROOT}/.env"
   fi
   ok "generated a setup hotspot passphrase"
+  if [ "${WANT_HOTSPOT}" -eq 0 ]; then
+    warn "(the hotspot is not being installed this run; this is saved for later)"
+  fi
   warn "WRITE THIS ON A LABEL INSIDE THE CABINET:"
   warn ""
   warn "    network:  weasley-clock-setup"
   warn "    password: ${HOTSPOT_PASSWORD}"
   warn ""
-  warn "It is the only way back into the clock if the house WiFi password"
-  warn "changes. Whoever needs it will be standing at the clock with no"
-  warn "other way to find it out."
+  warn "Once the hotspot is installed, that is the only way back into the"
+  warn "clock if the house WiFi password changes. Whoever needs it will be"
+  warn "standing at the clock with no other way to find it out."
 fi
 
 if grep -q 'password_hash: ""' "${REPO_ROOT}/config/clock.yaml" 2>/dev/null; then
@@ -271,7 +290,11 @@ fi
 # ------------------------------------------------- 7. fallback setup hotspot
 
 step "Fallback WiFi setup hotspot"
-if ! have nmcli; then
+if [ "${WANT_HOTSPOT}" -eq 0 ]; then
+  warn "skipped (--no-hotspot). Nothing installed, nothing enabled."
+  warn "When you are ready, with physical access to the clock:"
+  warn "  ./deploy/install.sh     # then docs/RUNBOOK.md section 11"
+elif ! have nmcli; then
   warn "nmcli not found, so the setup hotspot cannot run here."
   warn "Raspberry Pi OS Bookworm uses NetworkManager and has it as standard;"
   warn "on an older image the hotspot is not available and Tailscale plus"
@@ -339,10 +362,15 @@ echo "    Logs:      journalctl -u clockd -f"
 echo "    Restart:   sudo systemctl restart clockd"
 echo "    Try it:    ${VENV}/bin/python -m clockd.cli --sim --sim-fixtures"
 echo
+if [ "${WANT_HOTSPOT}" -eq 0 ]; then
+  echo "    Setup hotspot: NOT installed (--no-hotspot)."
+  echo "      Re-run without the flag once you have physical access."
+else
 echo "    Setup hotspot (only comes up when the clock loses WiFi):"
 echo "      status:  ${VENV}/bin/python -m clockd.hotspot --status"
 echo "      logs:    journalctl -u ${HOTSPOT_UNIT} -f"
 echo "      try it:  sudo ${VENV}/bin/python -m clockd.hotspot --once --force"
 echo "               (takes the clock off the WiFi until you ctrl-C it)"
+fi
 echo
 echo "    Next: deploy/tailscale-setup.sh, then docs/RUNBOOK.md."
