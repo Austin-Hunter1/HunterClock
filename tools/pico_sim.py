@@ -220,8 +220,27 @@ class SimPico:
         self.service()
         return len(self._out)
 
+    #: Most step deadlines one :meth:`service` call will walk through.  Only a
+    #: safety net: at ``--scale 20`` a tenth of a second of wall clock is two
+    #: seconds of simulated time, which is a few thousand deadlines at most.
+    MAX_DEADLINES_PER_SERVICE = 100_000
+
     def service(self) -> None:
-        """Advance simulated motion and housekeeping to the current time."""
+        """Advance simulated motion and housekeeping to the current time.
+
+        The core is walked forward *through* the step deadlines between where
+        it last was and now, rather than being told the new time once.  That
+        matters because this simulator's clock can run faster than the wall
+        clock it is driven from: at ``--scale 20``, two reads ten milliseconds
+        apart are two hundred milliseconds of simulated time, which is a
+        hundred-odd step deadlines.  A real Pico's loop runs continuously and
+        sees each of those as it falls due; jumping straight to the end would
+        present them all as long overdue, and the planner -- correctly, for
+        real hardware -- refuses to make up that much lateness by bunching
+        pulses (``motion.MAX_CATCHUP_INTERVALS``).  The hands would then crawl
+        at one microstep per read, which is an artefact of the simulator's
+        clock and nothing the firmware would ever do.
+        """
         now = self.clock()
         if (
             self.reset_after_s is not None
@@ -231,6 +250,11 @@ class SimPico:
             self._has_reset = True
             self.reset(protocol.BOOT_RESET)
             return
+        for _ in range(self.MAX_DEADLINES_PER_SERVICE):
+            due = self.core.mc.next_deadline()
+            if due is None or due > now:
+                break
+            self.core.tick(due)
         self.core.tick(now)
 
     def reset(self, boot_reason: str = protocol.BOOT_RESET) -> None:

@@ -310,7 +310,16 @@ def test_service_respects_its_pulse_budget():
     for ch in range(6):
         mc.move_to(ch, 50_000, 0)
     emitted = mc.service(10_000_000, budget=10)
-    assert emitted == 10
+    assert emitted <= 10
+    # This used to assert exactly 10, which was the budget capping a burst of
+    # catch-up pulses: ten seconds of deadlines had passed, and the planner
+    # tried to honour all of them at once.  A motor cannot follow a burst, so
+    # those steps were lost while the firmware counted them -- see
+    # motion.MAX_CATCHUP_INTERVALS and firmware/pico/tests/test_failure_modes.py.
+    # Lateness is now made up by re-scheduling, so a very late call emits one
+    # pulse per axis and the budget is no longer what limits it.
+    assert emitted == 6
+    assert mc.late_steps() == 6
 
 
 def test_pulse_callback_sees_every_step_with_its_direction():

@@ -79,6 +79,7 @@ class PicoCore:
         self.last_ping_us = None
         self.last_pos_us = None
         self.watchdog_tripped = False
+        self._watchdog_stopping = False
         self.commands_handled = 0
         self.errors = 0
         self._last_flash_us = None
@@ -91,6 +92,12 @@ class PicoCore:
             for index, value in enumerate(restored[:channels]):
                 self.mc.axis(index).set_position(int(value))
             self._flashed_positions = list(self.mc.positions())
+        #: Where the positions came from, if the store says.  Reported so the
+        #: controller can tell "this Pico has never saved anything" from "it
+        #: saved something and the file could not be read" -- both leave every
+        #: position at zero and needs_verification set, but the second means
+        #: the flash is failing and wants looking at.
+        self.pos_source = getattr(self.store, "source", None)
 
     # -- lifecycle -------------------------------------------------------
 
@@ -108,6 +115,7 @@ class PicoCore:
                 channels=self.channels,
                 needs_verification=self.needs_verification,
                 pos=self.mc.positions(),
+                pos_source=self.pos_source,
             )
         )
 
@@ -230,7 +238,14 @@ class PicoCore:
                 self.watchdog_s = max(0.0, command["watchdog_s"])
             if "pos_interval_ms" in command:
                 self.pos_interval_ms = max(0, command["pos_interval_ms"])
-            return protocol.ok_reply(seq, cmd, **self.params())
+            # Report the channel the command was scoped to, not channel 0.  A
+            # per-channel set_params used to apply correctly and then answer
+            # with channel 0's limits, so a caller that compares what it asked
+            # for against what came back concluded the firmware had clamped it.
+            scope = command["ch"]
+            return protocol.ok_reply(
+                seq, cmd, ch=scope, **self.params(0 if scope is None else scope)
+            )
 
         raise protocol.ProtocolError(protocol.ERR_UNKNOWN_CMD, "unhandled command %r" % cmd)
 
@@ -243,9 +258,13 @@ class PicoCore:
 
     # -- reports ---------------------------------------------------------
 
-    def params(self):
-        """The tunables, as reported by ``set_params`` and ``info``."""
-        axis = self.mc.axis(0)
+    def params(self, channel=0):
+        """The tunables, as reported by ``set_params`` and ``info``.
+
+        ``max_speed`` and ``accel`` are per axis, so they are reported for
+        ``channel``; everything else is firmware-wide.
+        """
+        axis = self.mc.axis(channel)
         return {
             "max_speed": axis.max_speed,
             "accel": axis.accel,
@@ -267,6 +286,7 @@ class PicoCore:
             "enabled": self.mc.enabled,
             "needs_verification": self.needs_verification,
             "pos": self.mc.positions(),
+            "pos_source": self.pos_source,
         }
         out.update(self.params())
         return out
@@ -282,7 +302,9 @@ class PicoCore:
             "needs_verification": self.needs_verification,
             "uptime_ms": self.uptime_ms(now_us),
             "steps": self.mc.step_count,
+            "late": self.mc.late_steps(),
             "errors": self.errors,
+            "flash_errors": getattr(self.store, "write_failures", 0),
             "watchdog_tripped": self.watchdog_tripped,
         }
 
@@ -307,21 +329,47 @@ class PicoCore:
 
         # Watchdog: the controller pings; losing it means the USB link or the Pi
         # has gone away, so bring the hands to a controlled stop.
+        #
+        # The test is "silent *and* there is something to stop", not "silent and
+        # we have not tripped yet".  A half-dead link -- commands arriving,
+        # pings not -- used to get a hand moving once the flag was set and then
+        # never be stopped again, because the flag only clears on a ping.  The
+        # property worth having is that no hand keeps moving while the Pi is
+        # quiet, however many times that has to be enforced.
+        silence_s = 0.0
+        silent = False
         if self.watchdog_s > 0 and self.last_ping_us is not None:
             silence_s = (now_us - self.last_ping_us) / 1_000_000.0
-            if silence_s > self.watchdog_s and not self.watchdog_tripped:
-                self.watchdog_tripped = True
+            silent = silence_s > self.watchdog_s
+        if silent:
+            first = not self.watchdog_tripped
+            self.watchdog_tripped = True
+            if moving:
                 self.mc.stop(now_us)
+            # Announce on an edge: the first time the link goes quiet, and
+            # every time a hand starts moving again while it is still quiet.
+            # Not once per loop iteration -- stopping takes a deceleration
+            # ramp, during which the axis is still "moving" and this branch
+            # runs on every tick.
+            if first or (moving and not self._watchdog_stopping):
                 events.append(
                     self._emit(
                         protocol.event(
                             "fault",
                             code=protocol.FAULT_WATCHDOG,
-                            msg="no ping for %.1f s; decelerating" % silence_s,
+                            msg=(
+                                "no ping for %.1f s; decelerating" % silence_s
+                                if moving
+                                else "no ping for %.1f s; hands already at rest"
+                                % silence_s
+                            ),
                             pos=self.mc.positions(),
                         )
                     )
                 )
+            self._watchdog_stopping = moving
+        else:
+            self._watchdog_stopping = False
 
         # Throttled position reports.
         if self._should_report(now_us, moving):

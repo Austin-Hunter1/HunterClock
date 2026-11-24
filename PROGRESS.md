@@ -307,3 +307,128 @@ hardware was connected in the session that wrote it. Specifically:
   radius however it is arranged. 5 mm is the most the level ordering allows
   before Micah's neck drops under 22 mm, and `build_hand` now refuses rather
   than trusting that arithmetic.
+* **Push 17** — the motor side: a bench bring-up tool, and five failure modes
+  that were silent. Branch `claude/pico-motors`.
+
+  `tools/bench.py` is what to hold when a motor first turns. It speaks the
+  ordinary protocol to the ordinary firmware — there is no bench mode on the
+  Pico — and covers Solder order step 9 in `docs/build-board.html`: `info`
+  with nothing but the Pico on USB, then `check --ch 0` to walk one channel
+  through sixteen microsteps, a reversal, a quarter turn, and a full
+  revolution against a physical mark, asking after each. It releases the
+  drivers on the way out of every path, including Ctrl-C and a crash, because
+  ENABLE is one pin for all six and leaving it low cooks six coils. `--port
+  sim` runs the whole thing with no hardware, which is how its 27 tests work.
+
+  Looking hard at the failure modes, as asked, cost more than writing the tool
+  and caught more:
+
+  * **A starved loop made the hands quietly wrong.** The main loop can be away
+    for tens of milliseconds — a GC pass, a flash write, a flood of serial.
+    Every step whose deadline passed was then due at once, and `service()`
+    emitted them back to back: measured, 40 pulses in one call after a 100 ms
+    stall at 400 microsteps/s. No stepper follows a burst, so the motor missed
+    most of them while the firmware counted all of them, and with no sensor
+    anywhere nothing ever noticed. Position wrong by up to 40 microsteps per
+    stall, cumulative, for ever. Lateness is now made up by re-scheduling
+    (`motion.MAX_CATCHUP_INTERVALS`): no step is lost, the move just finishes
+    late, and `late` in `status` counts it so a starved Pico is visible.
+  * **`stop` was not idempotent, and a repeated stop never stopped.**
+    `ceil(v²/2a)` rounds the braking distance up, so each fresh `stop` granted
+    one more microstep. A caller stopping once per loop iteration — a held UI
+    button, or the watchdog below — got a hand crawling at 56 microsteps/s
+    indefinitely, reporting `moving: true` with nothing to say it was wrong.
+    Found by writing the watchdog test, not by reading the code.
+  * **The watchdog could only fire once.** The tripped flag cleared only on a
+    `ping`, so on a half-dead link — commands arriving, pings not — a hand
+    commanded after the trip was never stopped again. It now re-stops whenever
+    the link is quiet and something is moving, and announces on an edge rather
+    than once per tick.
+  * **`positions.json` was rewritten in place.** The documented fallback path
+    (`os.rename` refused onto an existing file, which is the normal case on
+    some MicroPython ports) truncated and rewrote the real file, which is
+    exactly the half-written file a power cut must survive. It now writes
+    beside it, reads the copy back before swapping — a full flash can accept a
+    write and keep nothing — and `load()` falls back to the `.tmp` copy if the
+    power went during the swap. `pos_source` on `boot`/`info` distinguishes
+    "never saved" from "saved and unreadable": both give zeros, only one means
+    the flash wants looking at.
+  * **A crash left six coils energised.** One 0x03 byte on the wire raised
+    `KeyboardInterrupt` in the step loop and dropped to the REPL with ENABLE
+    still low and nothing feeding the watchdog for eight seconds.
+    `micropython.kbd_intr(-1)`, and a `finally` that releases the drivers
+    however the loop ends.
+
+  Two smaller ones: a scoped `set_params` applied correctly and then answered
+  with channel 0's limits, so a caller comparing what it asked for against what
+  came back concluded the firmware had clamped it; and `poll_lines` had no
+  bound, so a host writing faster than the Pico executes could starve the step
+  loop for ever.
+
+  The lateness fix also exposed that `tools/pico_sim.py` was not faithful: it
+  jumps simulated time and called `tick` once, so at `--scale 20` every pulse
+  looked a hundred intervals overdue and the hands crawled. It now walks the
+  core through the deadlines, which is what a real Pico's loop does.
+
+  66 new tests in `firmware/pico/tests/` (`make test-firmware`); the 528
+  controller tests still pass and `ruff check .` is clean. One existing
+  assertion changed: `test_service_respects_its_pulse_budget` asserted
+  `emitted == 10`, which was the budget capping the catch-up burst — see the
+  comment left in its place.
+
+  **Untested on hardware.** No Pico, driver or motor has ever been attached to
+  this project. Everything above was found and fixed in simulation; the bench
+  procedures are instructions for the owner to run, not results anyone has
+  observed. Nothing here can detect a stalled motor, and nothing can: there is
+  no encoder, no home sensor, and the A4988 has no fault output in this design.
+  The full-revolution stage of `bench.py check` and the `verified` flag are the
+  whole defence.
+* **Push 18** — the planner re-checked against the motors that were actually
+  bought, as `tools/motion_check.py` so the numbers can be re-derived rather
+  than taken on trust. Every figure is marked *datasheet*, *computed*, *bound*
+  or *measured*; rotor inertia is published for neither motor, so it is bounded
+  (the whole motor mass as a solid cylinder at the full frame radius) and every
+  margin below is a floor.
+
+  **Keep 800 microsteps/s and 1600 microsteps/s².** A 4.45 s full turn, a soft
+  start — the first microstep lands 17.7 ms after the command and the first ten
+  take 83 ms — and 0.226 mm of tip movement per microstep arriving at 800 Hz,
+  which reads as continuous. Nothing in the motors argues for changing them.
+
+  **The NEMA23s and the NEMA17s do not want different limits**, and the reason
+  is the opposite of the intuition. Torque is irrelevant here: at the
+  firmware's own *ceiling* the acceleration asks 3.2% of the NEMA23's holding
+  torque and 2.2% of the NEMA17's, at the reduced 0.8 A the build guide
+  recommends, against an inertia bound several times the real figure. The hand
+  is 5 g. But per unit of its own inertia the NEMA23 is the *weaker* of the two
+  — 3405 rad/s² against 4930 — so if the two types ever do want different
+  limits, the big motors want the lower one. Neither is close enough for it to
+  matter; a limit will be wanted for a tight tube or a stiff belt, on one
+  channel, which is what per-channel `set_params` is for (and which now reports
+  itself correctly, see push 17).
+
+  Two things the arithmetic did turn up:
+
+  * **`SPEED_LIMIT = 4000` is inside the plausible resonance band.** The
+    rotor-detent pendulum puts the low-speed resonance at ≥0.46 rev/s for the
+    NEMA23 and ≥0.56 rev/s for the NEMA17 — floors, because the inertia bound
+    is high. The ceiling is 1.25 rev/s. 1/16 stepping suppresses most of it,
+    which is what the bridged pins are for, but it is not a speed to go
+    looking for. The default at 0.25 rev/s is clear by a factor of two or more.
+  * **`main.py`'s "roughly a hundred times the headroom" was too generous.** It
+    compared the 208 µs pulse interval against a bare loop iteration, not
+    against `take_step`, which does a square root and a dozen float operations
+    per step. Measured at 0.82 µs per pulse on CPython here; at 30–100× for
+    MicroPython on a 125 MHz RP2040 that is 24–82 µs, so single-digit headroom
+    at the default and none at all at the ceiling. The docstring's *conclusion*
+    — software step loop, not PIO — still holds at 800 microsteps/s, and the
+    docstring now says so with the right number. The factor is an estimate and
+    says so; `late` in `status` is how to replace it with a fact.
+
+  Six more tests pin the numbers the recommendation turns on, so a planner
+  change that moves them fails rather than quietly invalidating this.
+
+  **Untested on hardware.** Arithmetic about motors cannot find a rubbing tube
+  or a tight bearing. `tools/bench.py check` and `late` are how the owner
+  checks the three things this cannot: whether anything binds, whether the loop
+  keeps up, and where the resonance actually is.
