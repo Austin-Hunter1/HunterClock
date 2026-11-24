@@ -578,3 +578,70 @@ def test_a_stall_is_not_detectable_and_this_records_that():
     assert "flash_errors" in status
     assert "needs_verification" in status
     assert pico.needs_verification is True
+
+
+# -- the planner against the real motors ---------------------------------------
+
+
+class TestMotionCheck:
+    """``tools/motion_check.py`` is arithmetic, so it can be checked.
+
+    It exists so that the recommendation about speed and acceleration can be
+    re-derived rather than taken on trust.  These tests pin the few numbers the
+    recommendation actually turns on, so a change to the planner that moves
+    them fails here rather than quietly invalidating the write-up.
+    """
+
+    def test_it_runs(self, capsys):
+        from tools import motion_check
+
+        assert motion_check.main([]) == 0
+        out = capsys.readouterr().out
+        assert "Recommendation" in out
+        assert "UNTESTED ON HARDWARE" in out
+
+    def test_a_full_turn_is_a_sweep_not_a_snap(self):
+        from tools import motion_check
+
+        result = motion_check.move_profile(
+            FULL_REV, motion.DEFAULT_MAX_SPEED, motion.DEFAULT_ACCEL
+        )
+        assert result["landed"]
+        assert 4.0 < result["seconds"] < 5.0, result["seconds"]
+        assert result["reached_cruise"]
+
+    def test_the_discrete_planner_tracks_the_textbook_trapezoid(self):
+        """Within a step interval or two, or the model behind the write-up is wrong."""
+        from tools import motion_check
+
+        for steps in (800, 1600, FULL_REV, FULL_REV * 4):
+            planner = motion_check.move_profile(
+                steps, motion.DEFAULT_MAX_SPEED, motion.DEFAULT_ACCEL
+            )["seconds"]
+            textbook = motion_check.analytic_trapezoid_s(
+                steps, motion.DEFAULT_MAX_SPEED, motion.DEFAULT_ACCEL
+            )
+            assert abs(planner - textbook) < 0.1, (steps, planner, textbook)
+
+    def test_the_torque_margin_is_not_marginal(self):
+        """Three orders of magnitude, or the recommendation needs rewriting."""
+        from tools import motion_check
+
+        alpha = motion_check.to_rad_s2(motion.ACCEL_LIMIT)
+        hand = motion_check.hand_inertia()
+        for motor in motion_check.MOTORS:
+            needed = (motor.inertia_bound() + hand) * alpha
+            available = motor.torque_at(motion_check.BENCH_CURRENT_A)
+            assert needed < available / 20.0, (motor.name, needed, available)
+
+    def test_the_default_speed_is_below_both_resonance_estimates(self):
+        from tools import motion_check
+
+        for motor in motion_check.MOTORS:
+            hz = motion_check.resonance_estimate_hz(motor)
+            band_usteps = hz * FULL_REV / 200.0
+            assert band_usteps / 1.5 > motion.DEFAULT_MAX_SPEED, (motor.name, band_usteps)
+
+    def test_the_ceiling_is_not_below_the_default(self):
+        assert motion.SPEED_LIMIT > motion.DEFAULT_MAX_SPEED
+        assert motion.ACCEL_LIMIT > motion.DEFAULT_ACCEL

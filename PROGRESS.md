@@ -383,3 +383,52 @@ hardware was connected in the session that wrote it. Specifically:
   no encoder, no home sensor, and the A4988 has no fault output in this design.
   The full-revolution stage of `bench.py check` and the `verified` flag are the
   whole defence.
+* **Push 18** — the planner re-checked against the motors that were actually
+  bought, as `tools/motion_check.py` so the numbers can be re-derived rather
+  than taken on trust. Every figure is marked *datasheet*, *computed*, *bound*
+  or *measured*; rotor inertia is published for neither motor, so it is bounded
+  (the whole motor mass as a solid cylinder at the full frame radius) and every
+  margin below is a floor.
+
+  **Keep 800 microsteps/s and 1600 microsteps/s².** A 4.45 s full turn, a soft
+  start — the first microstep lands 17.7 ms after the command and the first ten
+  take 83 ms — and 0.226 mm of tip movement per microstep arriving at 800 Hz,
+  which reads as continuous. Nothing in the motors argues for changing them.
+
+  **The NEMA23s and the NEMA17s do not want different limits**, and the reason
+  is the opposite of the intuition. Torque is irrelevant here: at the
+  firmware's own *ceiling* the acceleration asks 3.2% of the NEMA23's holding
+  torque and 2.2% of the NEMA17's, at the reduced 0.8 A the build guide
+  recommends, against an inertia bound several times the real figure. The hand
+  is 5 g. But per unit of its own inertia the NEMA23 is the *weaker* of the two
+  — 3405 rad/s² against 4930 — so if the two types ever do want different
+  limits, the big motors want the lower one. Neither is close enough for it to
+  matter; a limit will be wanted for a tight tube or a stiff belt, on one
+  channel, which is what per-channel `set_params` is for (and which now reports
+  itself correctly, see push 17).
+
+  Two things the arithmetic did turn up:
+
+  * **`SPEED_LIMIT = 4000` is inside the plausible resonance band.** The
+    rotor-detent pendulum puts the low-speed resonance at ≥0.46 rev/s for the
+    NEMA23 and ≥0.56 rev/s for the NEMA17 — floors, because the inertia bound
+    is high. The ceiling is 1.25 rev/s. 1/16 stepping suppresses most of it,
+    which is what the bridged pins are for, but it is not a speed to go
+    looking for. The default at 0.25 rev/s is clear by a factor of two or more.
+  * **`main.py`'s "roughly a hundred times the headroom" was too generous.** It
+    compared the 208 µs pulse interval against a bare loop iteration, not
+    against `take_step`, which does a square root and a dozen float operations
+    per step. Measured at 0.82 µs per pulse on CPython here; at 30–100× for
+    MicroPython on a 125 MHz RP2040 that is 24–82 µs, so single-digit headroom
+    at the default and none at all at the ceiling. The docstring's *conclusion*
+    — software step loop, not PIO — still holds at 800 microsteps/s, and the
+    docstring now says so with the right number. The factor is an estimate and
+    says so; `late` in `status` is how to replace it with a fact.
+
+  Six more tests pin the numbers the recommendation turns on, so a planner
+  change that moves them fails rather than quietly invalidating this.
+
+  **Untested on hardware.** Arithmetic about motors cannot find a rubbing tube
+  or a tight bearing. `tools/bench.py check` and `late` are how the owner
+  checks the three things this cannot: whether anything binds, whether the loop
+  keeps up, and where the resonance actually is.

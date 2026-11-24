@@ -31,16 +31,29 @@ Why a software step loop and not PIO
 ------------------------------------
 ``docs/hardware-plan.html`` sketched one PIO state machine per motor.  This
 firmware instead pulses from the main loop against per-axis microsecond
-deadlines, because the numbers make PIO unnecessary here: six hands at the
-default 800 microsteps/s is 4800 pulses/s in total, one every ~208 us, while a
-loop iteration on a 125 MHz RP2040 is a couple of microseconds.  The loop has
-roughly a hundred times the headroom it needs, and in exchange the whole
-real-time path is ordinary Python that pytest can run on a laptop.  Acceleration
-also means every step interval differs, so a PIO program would need the CPU to
-feed it a new delay per step anyway.  If a future version wants much higher
-speeds, :class:`motion.MotionController` already separates "when is the next
-step due" from "make a pulse", so a PIO backend can replace :func:`_pulse` alone.
-See ``docs/ARCHITECTURE.md``.
+deadlines, because the numbers make PIO unnecessary *at the speeds this clock
+uses*: six hands at the default 800 microsteps/s is 4800 pulses/s in total, one
+every ~208 us, and in exchange the whole real-time path is ordinary Python that
+pytest can run on a laptop.  Acceleration also means every step interval
+differs, so a PIO program would need the CPU to feed it a new delay per step
+anyway.
+
+The headroom is smaller than it looks, and this docstring used to overstate it
+as "roughly a hundred times" by comparing that 208 us against a bare loop
+iteration.  What actually has to fit in 208 us is :meth:`motion.Axis.take_step`
+-- a square root and a dozen float operations -- plus the STEP pulse width, the
+serial reader and the housekeeping.  ``tools/motion_check.py`` measures the
+planner at under a microsecond per pulse on a desktop and puts the Pico at
+single-digit headroom at the default rate, which is enough and is not a hundred
+times.  At :data:`motion.SPEED_LIMIT` it would not fit at all, which is one
+more reason that ceiling is a limit the drivers survive rather than a speed to
+use.  If a future version wants much higher speeds,
+:class:`motion.MotionController` already separates "when is the next step due"
+from "make a pulse", so a PIO backend can replace :meth:`Hardware.pulse` alone.
+
+A loop that does fall behind no longer loses steps over it: see
+:data:`motion.MAX_CATCHUP_INTERVALS`.  It runs the hands slow and says so
+through ``late`` in ``status``.  See ``docs/ARCHITECTURE.md``.
 """
 
 import sys

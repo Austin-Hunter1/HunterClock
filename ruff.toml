@@ -31,6 +31,7 @@ ignore = [
 # written in the firmware's idiom, so that moving a line between them and
 # firmware/pico/ does not mean rewriting it.
 "tools/bench.py" = ["UP031"]
+"tools/motion_check.py" = ["UP031"]
 "firmware/pico/tests/*.py" = ["UP031"]
 # The CAD scripts predate this work and are not part of the tracking system.
 "build_cad.py" = ["ALL"]
