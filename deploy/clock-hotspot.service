@@ -1,0 +1,79 @@
+# Fallback WiFi setup hotspot for the Weasley Clock.
+#
+#   sudo cp deploy/clock-hotspot.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now clock-hotspot
+#
+# deploy/install.sh does this for you and templates the paths below.
+#
+# WHY THIS IS A SEPARATE UNIT FROM clockd.service
+#
+# clockd refuses to start on a config/clock.yaml that does not validate, and
+# refuses to start in live mode with no UI password. Both are correct for a
+# thing that drives six motors, and both would be fatal in the thing whose job
+# is to rescue it. If the hotspot lived inside clockd, the failures most likely
+# to need a trip to the clock would also be the ones that took away the way to
+# fix it remotely. So: separate process, separate tiny config, no shared
+# failure modes.
+#
+# WHY IT RUNS AS ROOT
+#
+# It needs to create and activate system-wide NetworkManager connections, and
+# to bind port 80 so the captive-portal popup works. Doing it as an
+# unprivileged user means a polkit rule plus CAP_NET_BIND_SERVICE, which is
+# more moving parts in the one service that has to work when everything else
+# has not. The hardening below is the trade: no new privileges, read-only
+# system, and it is only reachable at all while the access point is up, which
+# only happens while the clock is already offline.
+
+[Unit]
+Description=Weasley Clock fallback WiFi setup hotspot
+Documentation=https://github.com/Austin-Hunter1/HunterClock
+Wants=NetworkManager.service
+After=NetworkManager.service
+# Deliberately NOT After=network-online.target: this unit's entire purpose is
+# to run when the network does not come up, so waiting for it would mean the
+# hotspot starts only on the boots where it is not needed.
+
+# Never give up. A hotspot that stops restarting after five failures is a
+# hotspot that is absent on the day somebody needs it. These belong in [Unit]:
+# systemd ignores them in [Service] and logs "Unknown key name".
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+# Root: see the note above.
+User=root
+WorkingDirectory=/home/hunterboys/HunterClock
+
+# CLOCK_HOTSPOT_PASSWORD lives here. The file is 0600 and gitignored.
+EnvironmentFile=-/home/hunterboys/HunterClock/.env
+Environment=PYTHONUNBUFFERED=1
+
+ExecStart=/home/hunterboys/HunterClock/.venv/bin/python -m clockd.hotspot
+
+Restart=always
+RestartSec=10
+
+KillSignal=SIGTERM
+# The service drops the access point on the way out, so give it room to do
+# that: being killed mid-shutdown is how a Pi ends up stranded as an access
+# point with nothing serving the page.
+TimeoutStopSec=30
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=clock-hotspot
+
+# Hardening. It needs NetworkManager over D-Bus, a listening socket and its
+# own read-only checkout; nothing else.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

@@ -13,6 +13,7 @@ dist/
 # Secrets and machine-local state -- never commit these.
 .env
 config/clock.yaml
+config/hotspot.yaml
 config/*.local.yaml
 var/
 !var/.gitkeep

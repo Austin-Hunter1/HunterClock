@@ -15,6 +15,12 @@ Wants=network-online.target
 # with it.
 Wants=mosquitto.service
 
+# Do not give up: a clock that stops restarting after five crashes is a clock
+# that is dead until someone drives to it. This has to be in [Unit] -- systemd
+# ignores StartLimitIntervalSec in [Service] and logs "Unknown key name", so
+# for as long as it sat below it was doing nothing at all.
+StartLimitIntervalSec=0
+
 [Service]
 Type=simple
 User=hunterboys
@@ -29,9 +35,6 @@ ExecStart=/home/hunterboys/HunterClock/.venv/bin/python -m clockd.cli
 
 Restart=always
 RestartSec=5
-# Do not give up: a clock that stops restarting after five crashes is a clock
-# that is dead until someone drives to it.
-StartLimitIntervalSec=0
 
 # The hands are stopped by the firmware watchdog when the controller goes away,
 # so a clean SIGTERM and a short wait is enough.

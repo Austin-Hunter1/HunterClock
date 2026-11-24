@@ -14,7 +14,8 @@
 #   4. creates config/clock.yaml and .env from the examples, if missing
 #   5. makes sure the service user can read the Pico's serial port
 #   6. installs the systemd unit, persistent journald and the Pi watchdog
-#   7. starts the service and tells you where the UI is
+#   7. installs the fallback WiFi setup hotspot
+#   8. starts the service and tells you where the UI is
 #
 # It does NOT configure Mosquitto (already running per the build plan), join
 # Tailscale (see deploy/tailscale-setup.sh) or add WiFi (deploy/add-wifi.sh).
@@ -25,6 +26,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SERVICE_USER="${CLOCK_USER:-$(id -un)}"
 VENV="${REPO_ROOT}/.venv"
 UNIT_NAME="clockd.service"
+HOTSPOT_UNIT="clock-hotspot.service"
 
 BOLD=$'\033[1m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; RED=$'\033[31m'; OFF=$'\033[0m'
 step()  { printf '%s==>%s %s\n' "${BOLD}" "${OFF}" "$*"; }
@@ -130,6 +132,32 @@ if [ ! -f "${REPO_ROOT}/.env" ]; then
 else
   chmod 600 "${REPO_ROOT}/.env"
   ok ".env already exists (not touched, mode forced to 600)"
+fi
+
+# The fallback hotspot needs a passphrase, and with none it will not raise an
+# access point at all. Generating one here beats asking a person to invent it,
+# which is how you end up with "password". It is written once and never
+# changed on a re-run, because it is on a label inside the cabinet by then.
+if grep -q '^CLOCK_HOTSPOT_PASSWORD=.\+' "${REPO_ROOT}/.env" 2>/dev/null; then
+  ok "setup hotspot passphrase already set in .env"
+else
+  HOTSPOT_PASSWORD="$("${VENV}/bin/python" -c 'import secrets; print(secrets.token_hex(6))')"
+  if grep -q '^CLOCK_HOTSPOT_PASSWORD=' "${REPO_ROOT}/.env"; then
+    # Use a non-/ delimiter: hex cannot contain one, but be explicit anyway.
+    sed -i "s|^CLOCK_HOTSPOT_PASSWORD=.*|CLOCK_HOTSPOT_PASSWORD=${HOTSPOT_PASSWORD}|" \
+      "${REPO_ROOT}/.env"
+  else
+    printf 'CLOCK_HOTSPOT_PASSWORD=%s\n' "${HOTSPOT_PASSWORD}" >> "${REPO_ROOT}/.env"
+  fi
+  ok "generated a setup hotspot passphrase"
+  warn "WRITE THIS ON A LABEL INSIDE THE CABINET:"
+  warn ""
+  warn "    network:  weasley-clock-setup"
+  warn "    password: ${HOTSPOT_PASSWORD}"
+  warn ""
+  warn "It is the only way back into the clock if the house WiFi password"
+  warn "changes. Whoever needs it will be standing at the clock with no"
+  warn "other way to find it out."
 fi
 
 if grep -q 'password_hash: ""' "${REPO_ROOT}/config/clock.yaml" 2>/dev/null; then
@@ -240,7 +268,50 @@ if [ "${NO_SYSTEMD}" -eq 0 ]; then
   ok "clockd enabled at boot"
 fi
 
-# ----------------------------------------------------------------- 7. start
+# ------------------------------------------------- 7. fallback setup hotspot
+
+step "Fallback WiFi setup hotspot"
+if ! have nmcli; then
+  warn "nmcli not found, so the setup hotspot cannot run here."
+  warn "Raspberry Pi OS Bookworm uses NetworkManager and has it as standard;"
+  warn "on an older image the hotspot is not available and Tailscale plus"
+  warn "pre-saved networks (deploy/add-wifi.sh) is the whole fallback."
+elif [ "${NO_SYSTEMD}" -eq 0 ]; then
+  # NetworkManager's shared-mode dnsmasq reads this, and nothing else does:
+  # it is not the system resolver. It is what makes the setup page appear by
+  # itself rather than someone needing to know to type an IP address.
+  sudo_if_needed mkdir -p /etc/NetworkManager/dnsmasq-shared.d
+  if ! sudo_if_needed cmp -s "${REPO_ROOT}/deploy/nm-dnsmasq-captive.conf" \
+       /etc/NetworkManager/dnsmasq-shared.d/weasley-captive.conf 2>/dev/null; then
+    sudo_if_needed cp "${REPO_ROOT}/deploy/nm-dnsmasq-captive.conf" \
+      /etc/NetworkManager/dnsmasq-shared.d/weasley-captive.conf
+    ok "captive-portal DNS installed (shared-mode dnsmasq only)"
+  else
+    ok "captive-portal DNS already installed"
+  fi
+
+  HOTSPOT_TMP="$(mktemp)"
+  sed -e "s|/home/hunterboys/HunterClock|${REPO_ROOT}|g" \
+      "${REPO_ROOT}/deploy/${HOTSPOT_UNIT}" > "${HOTSPOT_TMP}"
+  if ! sudo_if_needed cmp -s "${HOTSPOT_TMP}" "/etc/systemd/system/${HOTSPOT_UNIT}" 2>/dev/null; then
+    sudo_if_needed cp "${HOTSPOT_TMP}" "/etc/systemd/system/${HOTSPOT_UNIT}"
+    sudo_if_needed systemctl daemon-reload
+    ok "installed /etc/systemd/system/${HOTSPOT_UNIT}"
+  else
+    ok "hotspot unit already up to date"
+  fi
+  rm -f "${HOTSPOT_TMP}"
+
+  sudo_if_needed systemctl enable "${HOTSPOT_UNIT}" >/dev/null 2>&1 || true
+  sudo_if_needed systemctl restart "${HOTSPOT_UNIT}" || true
+  if systemctl is-active --quiet "${HOTSPOT_UNIT}"; then
+    ok "setup hotspot watching (it does nothing while the clock is online)"
+  else
+    warn "the setup hotspot did not start: journalctl -u ${HOTSPOT_UNIT} -n 30"
+  fi
+fi
+
+# ----------------------------------------------------------------- 8. start
 
 step "Starting"
 if [ "${NO_SYSTEMD}" -eq 0 ]; then
@@ -267,5 +338,11 @@ echo "    UI:        http://$(hostname):${PORT}/   (over Tailscale: http://$(hos
 echo "    Logs:      journalctl -u clockd -f"
 echo "    Restart:   sudo systemctl restart clockd"
 echo "    Try it:    ${VENV}/bin/python -m clockd.cli --sim --sim-fixtures"
+echo
+echo "    Setup hotspot (only comes up when the clock loses WiFi):"
+echo "      status:  ${VENV}/bin/python -m clockd.hotspot --status"
+echo "      logs:    journalctl -u ${HOTSPOT_UNIT} -f"
+echo "      try it:  sudo ${VENV}/bin/python -m clockd.hotspot --once --force"
+echo "               (takes the clock off the WiFi until you ctrl-C it)"
 echo
 echo "    Next: deploy/tailscale-setup.sh, then docs/RUNBOOK.md."
