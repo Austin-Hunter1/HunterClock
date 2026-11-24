@@ -88,15 +88,49 @@ class FileStore:
 
     :class:`core.PicoCore` only calls :meth:`save` at rest and no more than once
     every ten seconds, which is what keeps this from wearing the flash out.
+
+    Surviving a power cut mid-write
+    -------------------------------
+    The clock loses power without warning -- that is the normal way it is turned
+    off -- and it may well do so while this file is being written, because a
+    write follows every move.  So the file is never overwritten in place.  A new
+    copy is written beside it and then swapped in, and :meth:`load` reads
+    whichever of the two survived:
+
+    * power cut while writing ``.tmp``: the real file is untouched and holds the
+      previous positions, which are at most one move out of date;
+    * power cut during the swap: the real file may be gone, but ``.tmp`` holds a
+      complete newer copy and :meth:`load` falls back to it;
+    * flash full or worn out: the write is read back before anything is swapped,
+      so a write that kept nothing cannot destroy the good copy.
+
+    What none of that fixes is a hand that was turned, or a motor that slipped,
+    while the power was off -- no stored number can know about that, which is
+    why every boot sets ``needs_verification``.  :attr:`source` says which of
+    the cases above happened, so the controller can tell "nothing was ever
+    saved" from "something was saved and could not be read".
     """
+
+    #: Nothing was found: a Pico that has never saved, or a wiped filesystem.
+    SOURCE_NONE = "none"
+    #: The ordinary case: the primary file was read.
+    SOURCE_FLASH = "flash"
+    #: The primary file was missing or bad and the ``.tmp`` copy was used.
+    SOURCE_RECOVERED = "recovered"
+    #: Something was there and could not be parsed.  Positions are all zero and
+    #: are not merely unverified but unknown.
+    SOURCE_CORRUPT = "corrupt"
 
     def __init__(self, path=POSITION_FILE):
         self.path = path
+        self.tmp = path + ".tmp"
+        self.source = self.SOURCE_NONE
+        self.write_failures = 0
 
-    def load(self):
-        """Return the saved positions, or ``None`` if there is nothing usable."""
+    def _read(self, path):
+        """Return a list of ints, the string ``"corrupt"``, or ``None``."""
         try:
-            with open(self.path) as handle:
+            with open(path) as handle:
                 data = handle.read()
         except OSError:
             return None
@@ -105,29 +139,66 @@ class FileStore:
 
             positions = json.loads(data)
         except (ValueError, TypeError):
-            return None
-        if isinstance(positions, list) and all(
-            isinstance(v, (int, float)) for v in positions
+            return "corrupt"
+        if (
+            isinstance(positions, list)
+            and positions
+            and all(
+                isinstance(v, (int, float)) and not isinstance(v, bool)
+                for v in positions
+            )
         ):
             return [int(v) for v in positions]
+        return "corrupt"
+
+    def load(self):
+        """Return the saved positions, or ``None`` if there is nothing usable."""
+        primary = self._read(self.path)
+        if isinstance(primary, list):
+            self.source = self.SOURCE_FLASH
+            return primary
+        spare = self._read(self.tmp)
+        if isinstance(spare, list):
+            self.source = self.SOURCE_RECOVERED
+            return spare
+        if primary == "corrupt" or spare == "corrupt":
+            self.source = self.SOURCE_CORRUPT
+        else:
+            self.source = self.SOURCE_NONE
         return None
 
     def save(self, positions):
-        """Write ``positions`` atomically enough for a brownout to be survivable."""
+        """Write ``positions`` so that a power cut cannot lose both copies.
+
+        Raises:
+            OSError: the new copy did not read back.  The old one is still
+                there; :meth:`core.PicoCore._maybe_flash` will try again.
+        """
         import json
+        import os
 
-        payload = json.dumps([int(v) for v in positions])
-        tmp = self.path + ".tmp"
-        with open(tmp, "w") as handle:
+        wanted = [int(v) for v in positions]
+        payload = json.dumps(wanted)
+        with open(self.tmp, "w") as handle:
             handle.write(payload)
+        if self._read(self.tmp) != wanted:
+            # A full or worn flash can accept a write and keep nothing of it.
+            # Overwriting the good copy with that is how the positions you were
+            # trying to protect get lost.
+            self.write_failures += 1
+            raise OSError("positions did not read back from %s" % self.tmp)
         try:
-            import os
-
-            os.rename(tmp, self.path)
+            os.rename(self.tmp, self.path)
         except OSError:
-            # No atomic rename (or the target exists on some ports): fall back.
-            with open(self.path, "w") as handle:
-                handle.write(payload)
+            # Some ports will not rename onto a file that exists.  Removing
+            # first leaves a moment with no primary file, which is exactly the
+            # moment load() covers by reading the .tmp copy.
+            try:
+                os.remove(self.path)
+            except OSError:
+                pass
+            os.rename(self.tmp, self.path)
+        self.source = self.SOURCE_FLASH
 
 
 class Hardware:
@@ -207,6 +278,15 @@ class SerialLink:
 
     MAX_LINE = 512
 
+    #: Most bytes one :meth:`poll_lines` call will take off the port.
+    #:
+    #: Without a bound, a host that writes faster than the Pico can execute
+    #: keeps this loop fed forever and the step loop never runs again.  512
+    #: bytes is a whole maximum-length line, so a well-behaved host is never
+    #: slowed down, and a flood is served a line at a time between step
+    #: deadlines instead of starving them.
+    MAX_READ = 512
+
     def __init__(self):
         self.buffer = b""
         self.poller = select.poll()
@@ -216,10 +296,12 @@ class SerialLink:
     def poll_lines(self):
         """Return a list of complete lines received since the last call."""
         lines = []
-        while self.poller.poll(0):
+        read = 0
+        while read < self.MAX_READ and self.poller.poll(0):
             chunk = sys.stdin.buffer.read(1)
             if not chunk:
                 break
+            read += 1
             self.buffer += chunk
             if len(self.buffer) > self.MAX_LINE and b"\n" not in self.buffer:
                 self.buffer = b""
@@ -244,6 +326,20 @@ def run():  # pragma: no cover - needs a Pico
     UNTESTED ON HARDWARE: no Pico was connected when this was written.
     """
     hardware = Hardware()
+
+    # Stop MicroPython reading the data stream for Ctrl-C.  Without this, one
+    # 0x03 byte on the wire -- a serial terminal, a stray keystroke, a host
+    # program being helpful -- raises KeyboardInterrupt inside the step loop and
+    # drops to the REPL, leaving ENABLE low and six coils energised with nothing
+    # feeding the watchdog.  There is no console on this port in service: the
+    # Pi speaks JSON to it.
+    try:
+        import micropython
+
+        micropython.kbd_intr(-1)
+    except (ImportError, AttributeError):
+        pass
+
     link = SerialLink()
     pico = core.PicoCore(
         channels=len(STEP_DIR_PINS),
@@ -262,18 +358,38 @@ def run():  # pragma: no cover - needs a Pico
         # Not every port supports WDT; the core's own watchdog still applies.
         watchdog = None
 
-    while True:
-        now = hardware.now_us()
-        # Steps first: they are the only thing with a deadline.
-        pico.tick(now)
-        for line in link.poll_lines():
-            pico.handle_line(line, hardware.now_us())
-        if watchdog is not None:
-            watchdog.feed()
-        # Sleep only when nothing is moving, so an idle clock does not spin a
-        # core at 100%.  While moving, the loop runs flat out.
-        if not pico.mc.any_moving():
-            time.sleep_ms(2)
+    try:
+        while True:
+            now = hardware.now_us()
+            # Steps first: they are the only thing with a deadline.
+            pico.tick(now)
+            for line in link.poll_lines():
+                pico.handle_line(line, hardware.now_us())
+            if watchdog is not None:
+                watchdog.feed()
+            # Sleep only when nothing is moving, so an idle clock does not spin
+            # a core at 100%.  While moving, the loop runs flat out.
+            if not pico.mc.any_moving():
+                time.sleep_ms(2)
+    finally:
+        # However this loop ends -- a bug here, a MemoryError, a reset request
+        # -- do not walk away with the drivers on.  Six energised coils with
+        # nobody stepping them is a quarter of an amp each into a motor that is
+        # going nowhere, and the hardware watchdog will not reset us for eight
+        # seconds.  Releasing ENABLE costs the holding torque, which a clock
+        # hand does not need, and the position was already a belief.
+        try:
+            hardware.set_enable(False)
+            link.send(
+                protocol.event(
+                    "fault",
+                    code=protocol.FAULT_INTERNAL,
+                    msg="firmware loop exited; drivers released",
+                    pos=pico.mc.positions(),
+                )
+            )
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":  # pragma: no cover
