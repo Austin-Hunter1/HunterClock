@@ -478,6 +478,26 @@ You can watch the whole thing from Boulder on the Dashboard while they do it.
 If they cannot get to the page, you can do it yourself over the phone: Control →
 jog, while they tell you which way the hand is pointing. Slower, but it works.
 
+### Never turn a hand by hand
+
+The wizard jogs the motor with the arrow buttons, and that is the only way to
+move a hand. A stepper that is energised holds its position hard, and a hand
+is a printed part pressed onto a 5 mm shaft: forcing it shears the boss, or
+slips the rotor and silently throws away the zero you just set.
+
+**Check the drivers are really released before touching anything.** Control →
+drivers off should free the hands. On a bench build where the A4988s' shared
+ENABLE line has been bridged to ground rather than driven by GP14, it does
+not: the Pico's `set_enable` becomes a no-op, every driver stays energised,
+and **the UI still reports "drivers disabled"**. The page is not lying on
+purpose; it is reporting the command it sent, and nothing tells it the pin is
+strapped. Two other things follow from the same bridge: `motion.idle_disable`
+does nothing, and six 1.5 A steppers are held energised continuously, which is
+real heat inside a closed wooden cabinet.
+
+If you are not certain which way a particular board is wired, assume the
+motors are live.
+
 ---
 
 ## 5. Recovering from a power cut or brownout

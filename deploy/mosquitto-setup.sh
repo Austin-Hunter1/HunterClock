@@ -182,14 +182,49 @@ install_if_changed "${REPO_ROOT}/deploy/mosquitto-weasley.conf" "${CONF_DEST}" "
 # ----------------------------------------------------------------- restart
 
 step "Restarting Mosquitto"
+rollback() {
+  # Leaving the broker down is worse than not having configured it. The
+  # accounts and the ACL are harmless on their own; it is the listener that
+  # can clash with one the distribution or a previous setup already defined,
+  # so that is what goes back.
+  warn "putting the previous configuration back"
+  sudo_if_needed rm -f "${CONF_DEST}"
+  if sudo_if_needed systemctl restart mosquitto 2>/dev/null; then
+    warn "mosquitto is running again, without this clock's listener"
+  else
+    fail "mosquitto is still not running. It was already failing before this"
+    fail "script touched it: journalctl -u mosquitto -n 40 --no-pager"
+  fi
+}
+
 if ! sudo_if_needed systemctl restart mosquitto; then
-  die "mosquitto failed to restart. The reason will be in:
-    journalctl -u mosquitto -n 40 --no-pager"
+  fail "mosquitto failed to start with this configuration. It said:"
+  echo
+  sudo_if_needed journalctl -u mosquitto -n 25 --no-pager 2>/dev/null \
+    | sed 's/^/      /' || true
+  echo
+  # Much the commonest cause, and invisible unless you go looking: another
+  # listener on the same port, from the distribution's own config or from a
+  # previous setup of this broker.
+  OTHER="$(sudo_if_needed grep -rlsE '^\s*listener' /etc/mosquitto/mosquitto.conf \
+             /etc/mosquitto/conf.d/ 2>/dev/null | grep -v weasley || true)"
+  if [ -n "${OTHER}" ]; then
+    fail "a listener is already defined in:"
+    printf '        %s\n' ${OTHER} >&2
+    fail "Two listeners on port 1883 cannot both bind. Either remove the other"
+    fail "one, or drop the 'listener 1883' line from deploy/mosquitto-weasley.conf"
+    fail "and keep only the accounts and the ACL."
+  fi
+  rollback
+  exit 1
 fi
 sleep 1
 if ! systemctl is-active --quiet mosquitto; then
-  sudo_if_needed journalctl -u mosquitto -n 20 --no-pager || true
-  die "mosquitto is not running after a restart (see above)"
+  fail "mosquitto started and then stopped. It said:"
+  sudo_if_needed journalctl -u mosquitto -n 25 --no-pager 2>/dev/null \
+    | sed 's/^/      /' || true
+  rollback
+  exit 1
 fi
 ok "running"
 
