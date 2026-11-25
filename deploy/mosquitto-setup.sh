@@ -77,6 +77,17 @@ env_get() {
 
 env_set() {  # env_set NAME VALUE
   touch "${ENV_FILE}"; chmod 600 "${ENV_FILE}"
+  # Make sure the file ends with a newline before appending to it. Without
+  # this, a .env whose last line has no newline silently gets the new
+  # variable glued onto the end of the old one --
+  #     NTFY_URL=MQTT_DISPLAY_PASSWORD=a1b2c3
+  # -- which reads back as nothing, so the password is regenerated on every
+  # run and never recoverable. Found on the real Pi, where .env came from
+  # .env.example; it does not happen when .env is created from scratch,
+  # which is the only case this was tested in.
+  if [ -s "${ENV_FILE}" ] && [ -n "$(tail -c 1 "${ENV_FILE}")" ]; then
+    printf '\n' >> "${ENV_FILE}"
+  fi
   if grep -q "^$1=" "${ENV_FILE}"; then
     # The value is random hex, but use a delimiter it cannot contain anyway.
     python3 - "$1" "$2" "${ENV_FILE}" <<'PY'
@@ -187,6 +198,13 @@ if [ -z "${DISPLAY_PASSWORD}" ]; then
   # that are awkward in JSON or easy to mistype off a screen.
   DISPLAY_PASSWORD="$(python3 -c 'import secrets; print(secrets.token_hex(12))')"
   env_set MQTT_DISPLAY_PASSWORD "${DISPLAY_PASSWORD}"
+  # Read it straight back. A password written to .env but not readable from
+  # it is worse than no password: the broker gets one the nodes can never be
+  # told, and every run quietly issues another.
+  if [ "$(env_get MQTT_DISPLAY_PASSWORD)" != "${DISPLAY_PASSWORD}" ]; then
+    die "wrote MQTT_DISPLAY_PASSWORD to ${ENV_FILE} but could not read it back.
+    Check that file by hand before going further."
+  fi
   ok "generated a password for 'display' and saved it to .env"
 else
   ok "'display' password already in .env (kept)"
