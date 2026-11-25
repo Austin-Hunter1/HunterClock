@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block page_title %}System &middot; {{ title }}{% endblock %}
+{% block content %}
+<h1>System</h1>
+<p class="lede">The Pi itself: health, firmware, updates and the diagnostic bundle.
+Start troubleshooting by downloading the bundle &mdash; it has the logs, the versions and a
+sanitised config, which is everything needed to work out what went wrong from somewhere else.</p>
+
+<div class="row" style="margin-bottom:14px">
+  <a class="button primary" href="/api/system/diagnostics">Download diagnostic bundle</a>
+  <button id="refresh" type="button">Refresh</button>
+</div>
+
+<div class="grid two">
+  <div class="card">
+    <h2>Host</h2>
+    <dl class="kv" id="host-kv"></dl>
+  </div>
+
+  <div class="stack">
+    <div class="card">
+      <h2>Pico</h2>
+      <dl class="kv" id="pico-kv"></dl>
+      <div class="row" style="margin-top:10px">
+        <button id="upload" type="button">Upload firmware to the Pico</button>
+      </div>
+      <p class="small muted" style="margin:8px 0 0">
+        Copies <code>motion.py</code>, <code>protocol.py</code>, <code>core.py</code> and
+        <code>main.py</code> with <code>mpremote</code>, then resets the Pico. The controller
+        drops the serial link while it runs and reconnects afterwards. Every hand becomes
+        unverified, because the Pico restarts.
+      </p>
+      <pre id="upload-output" class="log" style="margin-top:10px;white-space:pre-wrap" hidden></pre>
+    </div>
+
+    <div class="card">
+      <h2>Alerts</h2>
+      <dl class="kv" id="alerts-kv"></dl>
+      <p class="small muted" style="margin:8px 0 0">
+        healthchecks.io is the dead-man's switch: if the pings stop, it emails you,
+        which is the only thing that catches a Pi that has lost power or hung.
+        ntfy tells you what broke while the Pi is still alive to say so.
+        Both are set by environment variable in <code>.env</code>, never in the config file.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Software</h2>
+      <dl class="kv" id="git-kv"></dl>
+      <div class="row" style="margin-top:10px">
+        <button id="update" type="button">Update from GitHub</button>
+        <button id="rollback" type="button">Roll back</button>
+        <button id="restart" class="danger" type="button">Restart controller</button>
+      </div>
+      <pre id="update-output" class="log" style="margin-top:10px;white-space:pre-wrap" hidden></pre>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+const ui = window.clockui;
+
+function fill(id, pairs) {
+  const dl = document.getElementById(id);
+  dl.replaceChildren();
+  for (const [key, value] of pairs) {
+    const dt = document.createElement("dt");
+    dt.textContent = key;
+    const dd = document.createElement("dd");
+    dd.textContent = value === null || value === undefined ? "—" : String(value);
+    dl.append(dt, dd);
+  }
+}
+
+async function refresh() {
+  const info = await ui.api("/api/system");
+  const disk = info.disk || {};
+  const tailscale = info.tailscale;
+  fill("host-kv", [
+    ["Hostname", info.hostname],
+    ["Platform", info.platform],
+    ["Python", info.python],
+    ["CPU temperature", info.cpu_temp_c === null ? "not available here" : info.cpu_temp_c + " °C"],
+    ["Load average", info.load ? info.load.join("  ") : null],
+    ["Disk", disk.total_gb ? `${disk.free_gb} GB free of ${disk.total_gb} GB (${disk.used_percent}% used)` : null],
+    ["Host uptime", ui.formatUptime(info.host_uptime_s)],
+    ["Controller uptime", ui.formatUptime(info.controller_uptime_s)],
+    ["Under systemd", info.systemd ? "yes" : "no"],
+    ["WiFi", info.wifi ? `${info.wifi.interface} signal ${info.wifi.signal_dbm} dBm` : "not wireless, or not available"],
+    ["Tailscale", tailscale ? `${tailscale.backend_state || "?"} ${tailscale.self || ""}` : "not installed"],
+    ["Services", Object.entries(info.services || {}).map(([k, v]) => `${k}: ${v}`).join("  ") || "systemctl not available"],
+    ["mpremote", info.mpremote || "not installed"],
+    ["Serial port", info.serial_port_present ? "present" : "not present"],
+  ]);
+
+  const git = info.git || {};
+  fill("git-kv", [
+    ["Branch", git.branch],
+    ["Commit", git.commit],
+    ["Working tree", git.dirty ? "has uncommitted changes" : "clean"],
+    ["Rollback", git.rollback_available ? "available" : "nothing recorded yet"],
+  ]);
+
+  const state = ui.latest;
+  if (state) {
+    const alerts = state.alerts || {};
+    fill("alerts-kv", [
+      ["Enabled", alerts.enabled ? "yes" : "no"],
+      ["healthchecks.io", alerts.healthchecks ? "configured" : "not set"],
+      ["ntfy", alerts.ntfy ? "configured" : "not set"],
+      ["Health pings sent", alerts.pings_sent],
+      ["Notifications sent", alerts.notifications_sent],
+      ["Delivery failures", alerts.failures],
+      ["Last ping", alerts.last_ping_at ? ui.formatTime(alerts.last_ping_at) : null],
+      ["Active problems", (alerts.active_conditions || []).join(", ") || "none"],
+      ["Last error", alerts.last_error],
+    ]);
+
+    const pico = state.pico || {};
+    fill("pico-kv", [
+      ["Link", pico.connected ? "connected" : "NOT CONNECTED"],
+      ["Transport", pico.transport ? `${pico.transport.kind} · ${pico.transport.port}` : null],
+      ["Firmware", pico.firmware],
+      ["Protocol", `${pico.protocol ?? "?"} (controller speaks ${pico.controller_protocol ?? "?"})`],
+      ["Boot reason", pico.boot_reason],
+      ["Pico uptime", pico.uptime_ms ? ui.formatUptime(pico.uptime_ms / 1000) : null],
+      ["Drivers", pico.enabled ? "enabled" : "released"],
+      ["Positions", (pico.positions || []).join(", ")],
+      ["Commands", `${pico.commands_sent ?? 0} sent, ${pico.timeouts ?? 0} timed out`],
+      ["Connections", `${pico.connects ?? 0} connects, ${pico.boots ?? 0} Pico boots`],
+      ["Last fault", pico.last_fault ? `${pico.last_fault.code}: ${pico.last_fault.msg}` : null],
+      ["Last error", pico.last_error],
+    ]);
+  }
+}
+
+function showOutput(id, text) {
+  const node = document.getElementById(id);
+  node.hidden = false;
+  node.textContent = text || "(no output)";
+}
+
+document.getElementById("refresh").onclick = refresh;
+
+document.getElementById("upload").onclick = () => ui.confirmAction(
+  "Upload the firmware to the Pico? The hands stop, the Pico restarts, and every hand becomes unverified.",
+  async () => {
+    ui.toast("Uploading firmware…");
+    try {
+      const data = await ui.api("/api/firmware/upload", {});
+      showOutput("upload-output", data.output);
+      ui.toast(data.ok ? "Firmware uploaded" : "Firmware upload failed", !data.ok);
+    } catch (error) { showOutput("upload-output", String(error.message)); }
+  });
+
+document.getElementById("update").onclick = () => ui.confirmAction(
+  "Pull the latest code from GitHub? Nothing takes effect until the controller restarts.",
+  async () => {
+    const data = await ui.api("/api/system/update", {});
+    showOutput("update-output", data.output);
+    ui.toast(data.ok ? `Updated ${data.before.slice(0, 8)} → ${data.after.slice(0, 8)}` : "Update failed", !data.ok);
+    refresh();
+  });
+
+document.getElementById("rollback").onclick = () => ui.confirmAction(
+  "Roll back to the commit recorded before the last update?",
+  async () => {
+    const data = await ui.api("/api/system/rollback", {});
+    showOutput("update-output", data.output);
+    ui.toast(data.ok ? "Rolled back to " + data.commit.slice(0, 8) : "Rollback failed", !data.ok);
+    refresh();
+  });
+
+document.getElementById("restart").onclick = () => ui.confirmAction(
+  "Restart the controller? The hands stop where they are and the UI reconnects in a few seconds.",
+  async () => {
+    try { await ui.api("/api/system/restart", {}); } catch (error) { /* the server exits */ }
+    ui.toast("Restarting… this page will reconnect by itself.");
+  });
+
+ui.onState(() => {});
+refresh();
+setInterval(refresh, 15000);
+</script>
+{% endblock %}
