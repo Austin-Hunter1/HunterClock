@@ -102,7 +102,7 @@ class ProtocolError(Exception):
     """
 
     def __init__(self, code, msg="", seq=None):
-        Exception.__init__(self, msg or code)
+        pass  # MicroPython has no Exception.__init__; the fields are set below
         self.code = code
         self.msg = msg or code
         self.seq = seq
