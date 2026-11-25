@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sign in &middot; {{ title }}</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Libre+Franklin:wght@400;500;600&family=IBM+Plex+Mono:wght@400&display=swap">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<main style="max-width:400px;padding-top:12vh">
+  <h1>{{ title }}</h1>
+  <p class="lede">One shared password. Reachable over Tailscale only.</p>
+  {% if error %}<div class="banner bad">{{ error }}</div>{% endif %}
+  {% if sim %}<div class="sim-banner"><strong>Simulation mode.</strong> No hardware is attached.</div>{% endif %}
+  <form method="post" action="/login" class="card stack">
+    <input type="hidden" name="next" value="{{ next }}">
+    <div>
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" autofocus>
+    </div>
+    <button class="primary" type="submit">Sign in</button>
+  </form>
+</main>
+</body>
+</html>

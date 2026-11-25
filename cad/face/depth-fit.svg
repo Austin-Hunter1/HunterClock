@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1042" height="510" viewBox="-200 -72 695 340">
+<rect x="-200" y="-72" width="695" height="340" fill="#FBF7EE"/>
+<rect x="0" y="-60" width="228.6" height="300" fill="#3F7A3A" opacity="0.13"/>
+<rect x="228.6" y="-60" width="25.4" height="300" fill="#C8A464" opacity="0.18"/>
+<line x1="228.6" y1="-60" x2="228.6" y2="240" stroke="#3F7A3A" stroke-width="2"/>
+<line x1="254.0" y1="-60" x2="254.0" y2="240" stroke="#C8A464" stroke-width="2" stroke-dasharray="5 4"/>
+<text x="224.6" y="-44" font-size="11" text-anchor="end" font-family="sans-serif" font-weight="600" fill="#2E6B2A">9 in available</text>
+<text x="259.0" y="-44" font-size="11" font-family="sans-serif" fill="#8A6A2A">10 in if the back block comes off</text>
+<line x1="0" y1="-60" x2="0" y2="240" stroke="#2B2419" stroke-width="3"/>
+<text x="6" y="234" font-size="10" font-family="sans-serif" fill="#2B2419">dial plane</text>
+<rect x="18.0" y="-8.6" width="58.0" height="57.2" fill="#4F7A4A" opacity="0.85" stroke="#2B2419" stroke-width="0.8"/>
+<text x="47.0" y="23.0" font-size="9" text-anchor="middle" fill="#FFF" font-family="monospace">Bec</text>
+<rect x="105.0" y="-8.6" width="58.0" height="57.2" fill="#5B5EA6" opacity="0.85" stroke="#2B2419" stroke-width="0.8"/>
+<text x="134.0" y="23.0" font-size="9" text-anchor="middle" fill="#FFF" font-family="monospace">Eva</text>
+<rect x="183.0" y="-1.2" width="43.0" height="42.4" fill="#3E6470" opacity="0.85" stroke="#2B2419" stroke-width="0.8"/>
+<text x="204.5" y="23.0" font-size="9" text-anchor="middle" fill="#FFF" font-family="monospace">Eli</text>
+<rect x="246.0" y="-1.2" width="43.0" height="42.4" fill="#A8672B" opacity="0.85" stroke="#2B2419" stroke-width="0.8"/>
+<text x="267.5" y="23.0" font-size="9" text-anchor="middle" fill="#FFF" font-family="monospace">Cal</text>
+<rect x="309.0" y="-1.2" width="43.0" height="42.4" fill="#8A4B6B" opacity="0.85" stroke="#2B2419" stroke-width="0.8"/>
+<text x="330.5" y="23.0" font-size="9" text-anchor="middle" fill="#FFF" font-family="monospace">Aus</text>
+<rect x="372.0" y="-1.2" width="43.0" height="42.4" fill="#B0562A" opacity="0.85" stroke="#2B2419" stroke-width="0.8"/>
+<text x="393.5" y="23.0" font-size="9" text-anchor="middle" fill="#FFF" font-family="monospace">Mic</text>
+<text x="-4" y="-22.0" font-size="11" text-anchor="end" font-family="sans-serif" font-weight="600" fill="#2B2419">As designed: six coaxial</text>
+<text x="-4" y="-8.0" font-size="10" text-anchor="end" font-family="monospace" fill="#7D705D">415 mm / 16.34 in</text>
+<rect x="18.0" y="91.4" width="58.0" height="57.2" fill="#4F7A4A" opacity="0.85" stroke="#2B2419" stroke-width="0.8"/>
+<text x="47.0" y="123.0" font-size="9" text-anchor="middle" fill="#FFF" font-family="monospace">Bec</text>
+<rect x="105.0" y="91.4" width="58.0" height="57.2" fill="#5B5EA6" opacity="0.85" stroke="#2B2419" stroke-width="0.8"/>
+<text x="134.0" y="123.0" font-size="9" text-anchor="middle" fill="#FFF" font-family="monospace">Eva</text>
+<rect x="183.0" y="98.8" width="43.0" height="42.4" fill="#3E6470" opacity="0.85" stroke="#2B2419" stroke-width="0.8"/>
+<text x="204.5" y="123.0" font-size="9" text-anchor="middle" fill="#FFF" font-family="monospace">Eli</text>
+<text x="-4" y="78.0" font-size="11" text-anchor="end" font-family="sans-serif" font-weight="600" fill="#2B2419">One chain of three</text>
+<text x="-4" y="92.0" font-size="10" text-anchor="end" font-family="monospace" fill="#7D705D">226 mm / 8.90 in</text>
+<rect x="18.0" y="178.8" width="43.0" height="42.4" fill="#A8672B" opacity="0.85" stroke="#2B2419" stroke-width="0.8"/>
+<text x="39.5" y="203.0" font-size="9" text-anchor="middle" fill="#FFF" font-family="monospace">Cal</text>
+<rect x="81.0" y="178.8" width="43.0" height="42.4" fill="#8A4B6B" opacity="0.85" stroke="#2B2419" stroke-width="0.8"/>
+<text x="102.5" y="203.0" font-size="9" text-anchor="middle" fill="#FFF" font-family="monospace">Aus</text>
+<rect x="144.0" y="178.8" width="43.0" height="42.4" fill="#B0562A" opacity="0.85" stroke="#2B2419" stroke-width="0.8"/>
+<text x="165.5" y="203.0" font-size="9" text-anchor="middle" fill="#FFF" font-family="monospace">Mic</text>
+<text x="-4" y="158.0" font-size="11" text-anchor="end" font-family="sans-serif" font-weight="600" fill="#2B2419">The other chain of three</text>
+<text x="-4" y="172.0" font-size="10" text-anchor="end" font-family="monospace" fill="#7D705D">187 mm / 7.36 in</text>
+<text x="-196" y="250" font-size="10" font-family="sans-serif" fill="#7D705D">Side view, to scale. Depth behind the dial increases to the right.</text>
+</svg>
