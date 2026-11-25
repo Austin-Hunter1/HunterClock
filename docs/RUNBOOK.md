@@ -265,11 +265,25 @@ already carries an iPhone and nobody has to keep an app alive.
 is kinder: Home Assistant is a much bigger thing than this controller, and you
 do not want its upgrades taking the clock down with them.
 
+On the clock's own Pi, use `deploy/homeassistant/setup.sh`: it runs HA in
+Docker with history in RAM and `/config` inside a fixed 1 GiB image, so the SD
+card is spared the recorder's constant writes and HA can never fill it. That
+is how the real clock runs it; `deploy/homeassistant/README.md` covers the
+first-time steps, backups, restoring and moving to an SSD.
+
 **2. Add the Apple Account integration.** Settings → Devices & services → Add
 integration → **Apple iCloud** (Apple now calls an Apple ID an "Apple
 Account"; Home Assistant's integration is still listed under iCloud). It wants
 the Apple Account and a six-digit code from a trusted device. Each person needs
 their own account added, or one Family Sharing account that can see the others.
+
+**Use one Family Sharing account, with the family option on.** Tested on the
+real clock: an account in the family's Family Sharing group, added with the
+integration's option to include family members' devices, surfaced every
+family member's iPhone and Watch through a single sign-in. Added *without*
+that option, the same account showed only its own phone. People who only
+share their location with you in Find My's People tab, outside Family
+Sharing, are not reachable this way at all -- Apple has no API for that.
 
 Two things Home Assistant's own documentation says about it, both of which
 matter here:
