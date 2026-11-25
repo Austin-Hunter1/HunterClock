@@ -289,9 +289,23 @@ class PersonState:
             "color": self.color,
         }
 
+    def position(self, now: float | None = None) -> tuple[float | None, float | None]:
+        """Where this person is, for the Globe page.
+
+        An active override with coordinates wins, exactly as it does for the
+        hand. A distance-only override has no place on a map, so it yields
+        nothing rather than the real fix it is hiding.
+        """
+        if self.override is not None and self.override.active(now):
+            return self.override.lat, self.override.lon
+        if self.last_fix is not None:
+            return self.last_fix.lat, self.last_fix.lon
+        return None, None
+
     def to_ui(self, stale_after_s: float, now: float | None = None) -> dict[str, Any]:
         """Everything the web UI needs about this person, in one dict."""
         now = now if now is not None else time.time()
+        lat, lon = self.position(now)
         return {
             "name": self.name,
             "slug": self.slug,
@@ -302,6 +316,8 @@ class PersonState:
             "status": self.status(stale_after_s, now),
             "display_status": self.display_status(stale_after_s, now),
             "distance_km": self.distance_km,
+            "lat": lat,
+            "lon": lon,
             "target_deg": self.target_deg,
             "actual_deg": self.actual_deg,
             "target_steps": self.target_steps,

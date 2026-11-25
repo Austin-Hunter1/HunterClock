@@ -53,6 +53,7 @@ PUSH_INTERVAL_S = 1.0
 #: Pages in the navigation, in order.
 NAV = [
     ("dashboard", "/", "Dashboard"),
+    ("globe", "/globe", "Globe"),
     ("control", "/control", "Control"),
     ("assist", "/assist", "Assist"),
     ("simulate", "/simulate", "Simulate"),
@@ -254,6 +255,11 @@ def create_app(
     async def dashboard(request: Request) -> Response:
         """The clock face and the state table."""
         return page(request, "dashboard", "dashboard.html")
+
+    @app.get("/globe", response_class=HTMLResponse)
+    async def globe(request: Request) -> Response:
+        """Everyone's current position on a globe, centred on home."""
+        return page(request, "globe", "globe.html")
 
     @app.get("/control", response_class=HTMLResponse)
     async def control(request: Request) -> Response:

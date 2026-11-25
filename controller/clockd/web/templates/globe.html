@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+{% block page_title %}Globe &middot; {{ title }}{% endblock %}
+{% block content %}
+<h1>Globe</h1>
+<p class="lede">Where everybody is right now, as the controller sees it. Drag to spin,
+scroll or pinch to zoom, tap a name to fly there. A faded marker is stale; a
+person with no position yet is listed but not drawn.</p>
+
+<div class="grid two globe-layout">
+  <div class="card globe-card">
+    <div id="globe" class="globe" aria-label="Globe showing each person's position"></div>
+    <div class="globe-tools">
+      <button class="small" type="button" id="globe-home">Centre on home</button>
+      <button class="small ghost" type="button" id="globe-reset">Reset zoom</button>
+      <label class="small muted globe-spin"><input type="checkbox" id="globe-arcs" checked> Arcs from home</label>
+    </div>
+    <p class="small muted" id="globe-note" style="margin:8px 0 0"></p>
+  </div>
+
+  <div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Person</th><th>Distance</th><th>Last seen</th><th>Source</th><th>Status</th></tr></thead>
+        <tbody id="globe-rows"></tbody>
+      </table>
+    </div>
+    <p class="small muted" style="margin-top:10px">
+      Home is <span id="globe-home-label" class="mono">&mdash;</span>.
+    </p>
+  </div>
+</div>
+
+<style>
+  .grid.two.globe-layout { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); align-items: start; }
+  @media (max-width: 880px) { .grid.two.globe-layout { grid-template-columns: minmax(0, 1fr); } }
+  .globe { width: 100%; aspect-ratio: 1 / 1; touch-action: none; cursor: grab; }
+  .globe:active { cursor: grabbing; }
+  .globe svg { width: 100%; height: 100%; display: block; }
+  .globe .ocean { fill: var(--dial); stroke: var(--edge); stroke-width: 1.2; }
+  .globe .graticule { fill: none; stroke: var(--line); stroke-width: .5; }
+  .globe .land { fill: var(--line); stroke: var(--edge); stroke-width: .6; }
+  .globe .arc { fill: none; stroke-width: 1.6; stroke-dasharray: 4 3; opacity: .75; }
+  .globe .home-mark { fill: var(--brass); stroke: var(--ink); stroke-width: 1.2; }
+  .globe .pin { stroke: var(--surface); stroke-width: 2; }
+  .globe .pin-label { font-family: var(--body); font-size: 12px; font-weight: 600;
+    fill: var(--ink); paint-order: stroke; stroke: var(--dial); stroke-width: 3px; }
+  .globe .stale { opacity: .4; }
+  .globe-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+  .globe-spin { display: inline-flex; gap: 6px; align-items: center; }
+  #globe-rows tr { cursor: pointer; }
+  #globe-rows tr:hover td { background: var(--sunken); }
+</style>
+{% endblock %}
+
+{% block script %}
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+<script>
+(() => {
+const ui = window.clockui;
+const note = document.getElementById("globe-note");
+const holder = document.getElementById("globe");
+
+if (!window.d3 || !window.topojson) {
+  note.textContent = "The globe needs d3 from cdn.jsdelivr.net, which this browser could not load. " +
+    "Everything else on this page still works.";
+}
+
+const SIZE = 600;            // viewBox units; the SVG scales to the card
+const BASE = SIZE / 2 - 8;   // globe radius at zoom 1
+let zoom = 1;
+let rotation = [93.5, -45, 0];  // replaced by home on the first state
+let centred = false;
+let latest = null;
+let land = null;
+let flight = null;
+
+const d3 = window.d3;
+const projection = d3 ? d3.geoOrthographic().translate([SIZE / 2, SIZE / 2]).clipAngle(90).precision(0.4) : null;
+const path = d3 ? d3.geoPath(projection) : null;
+
+let svg, gOcean, gGrat, gLand, gArcs, gHome, gPins;
+if (d3) {
+  svg = d3.select(holder).append("svg").attr("viewBox", `0 0 ${SIZE} ${SIZE}`);
+  gOcean = svg.append("path").attr("class", "ocean");
+  gGrat = svg.append("path").attr("class", "graticule").datum(d3.geoGraticule10());
+  gLand = svg.append("path").attr("class", "land");
+  gArcs = svg.append("g");
+  gHome = svg.append("g");
+  gPins = svg.append("g");
+
+  d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/land-110m.json")
+    .then((topo) => { land = topojson.feature(topo, topo.objects.land); render(); })
+    .catch(() => { note.textContent = "Could not load the coastline map; positions are still shown."; });
+
+  // Drag spins the globe; the amount scales with zoom so the point under the
+  // finger roughly stays under the finger.
+  svg.call(d3.drag().on("start", () => { flight = null; }).on("drag", (event) => {
+    const k = 90 / (BASE * zoom);
+    rotation = [rotation[0] + event.dx * k, Math.max(-90, Math.min(90, rotation[1] - event.dy * k)), 0];
+    render();
+  }));
+  svg.on("wheel", (event) => {
+    event.preventDefault();
+    zoom = Math.max(0.8, Math.min(12, zoom * Math.exp(-event.deltaY * 0.0015)));
+    render();
+  }, { passive: false });
+
+  // Two-finger pinch on phones.
+  let pinch = null;
+  holder.addEventListener("touchmove", (event) => {
+    if (event.touches.length !== 2) { pinch = null; return; }
+    const [a, b] = event.touches;
+    const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    if (pinch) zoom = Math.max(0.8, Math.min(12, zoom * d / pinch));
+    pinch = d;
+    render();
+  }, { passive: true });
+  holder.addEventListener("touchend", () => { pinch = null; });
+}
+
+function flyTo(lon, lat, toZoom) {
+  if (!d3) return;
+  const start = rotation.slice();
+  const end = [-lon, -lat, 0];
+  // Take the short way round in longitude.
+  let dLon = ((end[0] - start[0] + 540) % 360) - 180;
+  const z0 = zoom, z1 = toZoom ?? zoom;
+  const t0 = performance.now(), ms = 900;
+  const token = {};
+  flight = token;
+  const step = (now) => {
+    if (flight !== token) return;
+    const t = Math.min(1, (now - t0) / ms);
+    const e = d3.easeCubicInOut(t);
+    rotation = [start[0] + dLon * e, start[1] + (end[1] - start[1]) * e, 0];
+    zoom = z0 + (z1 - z0) * e;
+    render();
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+function visible(lon, lat) {
+  // A point is on the near side when it is within 90 degrees of the centre.
+  return d3.geoDistance([lon, lat], [-rotation[0], -rotation[1]]) < Math.PI / 2;
+}
+
+function render() {
+  if (!d3) return;
+  projection.scale(BASE * zoom).rotate(rotation);
+  gOcean.datum({ type: "Sphere" }).attr("d", path);
+  gGrat.attr("d", path);
+  gLand.datum(land || { type: "FeatureCollection", features: [] }).attr("d", path);
+  if (!latest) return;
+
+  const home = [latest.home.lon, latest.home.lat];
+  const people = latest.people.filter((p) => p.lat != null && p.lon != null);
+  const showArcs = document.getElementById("globe-arcs").checked;
+
+  gArcs.selectAll("path").data(showArcs ? people : [], (p) => p.slug)
+    .join("path").attr("class", (p) => "arc" + (p.stale ? " stale" : ""))
+    .attr("stroke", (p) => p.color)
+    .attr("d", (p) => path({ type: "LineString", coordinates: [home, [p.lon, p.lat]] }));
+
+  const homeXY = projection(home);
+  gHome.selectAll("*").remove();
+  if (visible(...home)) {
+    const [x, y] = homeXY;
+    gHome.append("path").attr("class", "home-mark")
+      .attr("d", d3.symbol(d3.symbolStar, 150)()).attr("transform", `translate(${x},${y})`);
+  }
+
+  // People who share a spot (everyone at home) fan out a little so each
+  // marker and name stays readable.
+  const shown = people.filter((p) => visible(p.lon, p.lat))
+    .map((p) => ({ p, xy: projection([p.lon, p.lat]) }));
+  const groups = new Map();
+  for (const item of shown) {
+    const key = Math.round(item.xy[0] / 14) + ":" + Math.round(item.xy[1] / 14);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  }
+  for (const items of groups.values()) {
+    items.forEach((item, i) => {
+      if (items.length === 1) { item.off = [0, 0]; return; }
+      const a = (2 * Math.PI * i) / items.length - Math.PI / 2;
+      item.off = [Math.cos(a) * 13, Math.sin(a) * 13];
+    });
+  }
+
+  const pins = gPins.selectAll("g.person").data(shown, (d) => d.p.slug)
+    .join((enter) => {
+      const g = enter.append("g").attr("class", "person");
+      g.append("circle").attr("class", "pin").attr("r", 7);
+      g.append("text").attr("class", "pin-label").attr("dy", "0.35em");
+      g.append("title");
+      return g;
+    });
+  pins.attr("class", (d) => "person" + (d.p.stale ? " stale" : ""))
+    .attr("transform", (d) => `translate(${d.xy[0] + d.off[0]},${d.xy[1] + d.off[1]})`);
+  pins.select("circle").attr("fill", (d) => d.p.color);
+  pins.select("text")
+    .attr("x", (d) => (d.off[0] < 0 ? -11 : 11))
+    .attr("text-anchor", (d) => (d.off[0] < 0 ? "end" : "start"))
+    .text((d) => d.p.name);
+  pins.select("title").text((d) =>
+    `${d.p.name}: ${ui.formatKm(d.p.distance_km)} from home, seen ${ui.formatAge(d.p.age_s)} via ${d.p.source || "?"}`);
+
+  const hidden = people.length - shown.length;
+  if (land !== null || !note.textContent) {
+    note.textContent = hidden > 0
+      ? `${hidden} ${hidden === 1 ? "person is" : "people are"} on the far side; spin the globe or tap a name.`
+      : "";
+  }
+}
+
+function renderTable(state) {
+  const body = document.getElementById("globe-rows");
+  body.replaceChildren();
+  for (const p of state.people) {
+    const tr = document.createElement("tr");
+    const name = document.createElement("td");
+    const sw = document.createElement("span");
+    sw.className = "sw";
+    sw.style.background = p.color;
+    sw.style.marginRight = "7px";
+    name.append(sw, document.createTextNode(p.name));
+    tr.appendChild(name);
+    for (const value of [
+      ui.formatKm(p.distance_km),
+      ui.formatAge(p.age_s),
+      p.source || "—",
+    ]) {
+      const td = document.createElement("td");
+      td.textContent = value;
+      tr.appendChild(td);
+    }
+    const status = document.createElement("td");
+    status.appendChild(ui.statusBadge(p));
+    tr.appendChild(status);
+    if (p.lat != null && p.lon != null) {
+      tr.title = "Fly to " + p.name;
+      tr.addEventListener("click", () => flyTo(p.lon, p.lat, Math.max(zoom, 3)));
+    } else {
+      tr.title = "No position yet";
+    }
+    body.appendChild(tr);
+  }
+}
+
+document.getElementById("globe-home").addEventListener("click", () => {
+  if (latest) flyTo(latest.home.lon, latest.home.lat);
+});
+document.getElementById("globe-reset").addEventListener("click", () => {
+  if (latest) flyTo(latest.home.lon, latest.home.lat, 1);
+});
+document.getElementById("globe-arcs").addEventListener("change", render);
+
+ui.onState((state) => {
+  latest = state;
+  document.getElementById("globe-home-label").textContent = state.home.name;
+  if (!centred) {
+    rotation = [-state.home.lon, -state.home.lat, 0];
+    centred = true;
+  }
+  renderTable(state);
+  render();
+});
+})();
+</script>
+{% endblock %}

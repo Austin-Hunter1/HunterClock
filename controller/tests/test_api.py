@@ -126,7 +126,7 @@ async def test_a_password_from_the_environment_is_accepted(stack, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "path", ["/", "/control", "/assist", "/simulate", "/logs", "/config", "/system"]
+    "path", ["/", "/globe", "/control", "/assist", "/simulate", "/logs", "/config", "/system"]
 )
 async def test_every_page_renders(client, path):
     response = await client.get(path)
@@ -154,7 +154,7 @@ async def test_state_has_everything_the_dashboard_needs(client):
     person = state["people"][0]
     assert set(person) >= {
         "name", "slug", "level", "channel", "color", "status", "verified",
-        "target_deg", "actual_deg", "distance_km", "source",
+        "target_deg", "actual_deg", "distance_km", "source", "lat", "lon",
     }
 
 
