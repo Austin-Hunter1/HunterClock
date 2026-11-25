@@ -27,6 +27,11 @@
 
 set -euo pipefail
 
+# mosquitto and mosquitto_passwd live in /usr/sbin, which Debian leaves off a
+# non-root user's PATH. Without this the script reports "mosquitto is not
+# installed" on a Pi where the broker is running -- found on the real Pi.
+PATH="${PATH}:/usr/sbin:/sbin"
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${REPO_ROOT}/.env"
 CONF_DEST=/etc/mosquitto/conf.d/weasley.conf
@@ -67,6 +72,31 @@ secure_for_mosquitto() {  # secure_for_mosquitto <path>
   sudo_if_needed chmod 0600 "$1"
 }
 
+# ---- env helpers (controller/tests/test_env_helpers.py runs these on their own)
+
+# Refuse a .env that contains NUL bytes. This is what a lost write on an SD
+# card looks like: the file keeps its new length but the data never reached
+# the card, so it reads back as zeros. On the real Pi it left
+#     \0\0\0...\0MQTT_DISPLAY_PASSWORD=<hex>
+# as one line. env_get only matches a line that *starts* with the name, so it
+# read nothing, the script issued a new password on every run, and each one
+# was glued onto the end of the zeros -- the broker had a display password
+# that .env could not give back. Do not guess at a repair: the zeros may have
+# eaten another variable too, and a person should look before anything is
+# rewritten.
+env_check_intact() {
+  [ -f "${ENV_FILE}" ] || return 0
+  local nuls
+  nuls="$(tr -cd '\000' < "${ENV_FILE}" | wc -c | tr -d ' ')"
+  [ "${nuls}" -eq 0 ] && return 0
+  die "${ENV_FILE} contains ${nuls} NUL bytes -- a write that never reached the
+    SD card. Nothing has been changed. Recover it by hand:
+        cp -p .env .env.bak && tr -d '\\000' < .env.bak > .env && chmod 600 .env
+    then check every variable in it is still there (a zeroed line is lost, not
+    hidden) and run this again. If a password is missing, this script will
+    issue a new one; re-flash anything that used the old one."
+}
+
 # Read a variable out of .env without sourcing it: .env is a systemd
 # EnvironmentFile, not a shell script, and sourcing one with an unquoted `#`
 # or a bare `$` in a password does surprising things.
@@ -82,10 +112,13 @@ env_set() {  # env_set NAME VALUE
   # variable glued onto the end of the old one --
   #     NTFY_URL=MQTT_DISPLAY_PASSWORD=a1b2c3
   # -- which reads back as nothing, so the password is regenerated on every
-  # run and never recoverable. Found on the real Pi, where .env came from
-  # .env.example; it does not happen when .env is created from scratch,
-  # which is the only case this was tested in.
-  if [ -s "${ENV_FILE}" ] && [ -n "$(tail -c 1 "${ENV_FILE}")" ]; then
+  # run and never recoverable. (Suspected on the real Pi, but its .env turned
+  # out to have NUL bytes instead -- see env_check_intact. This guard stays
+  # because a hand-edited .env can still lose its last newline.) Compare the
+  # byte with od, not $(tail -c 1): bash drops NULs from a command
+  # substitution, so a file ending in one would look like it ended cleanly.
+  if [ -s "${ENV_FILE}" ] \
+     && [ "$(tail -c 1 "${ENV_FILE}" | od -An -tx1 | tr -d ' \n')" != "0a" ]; then
     printf '\n' >> "${ENV_FILE}"
   fi
   if grep -q "^$1=" "${ENV_FILE}"; then
@@ -95,12 +128,17 @@ import sys, pathlib
 name, value, path = sys.argv[1], sys.argv[2], pathlib.Path(sys.argv[3])
 lines = path.read_text().splitlines()
 out = [f"{name}={value}" if line.startswith(f"{name}=") else line for line in lines]
-path.write_text("\n".join(out) + "\n")
+path.write_bytes(("\n".join(out) + "\n").encode())
 PY
   else
     printf '%s=%s\n' "$1" "$2" >> "${ENV_FILE}"
   fi
+  # The SD card has already lost one write to this file. A password that only
+  # ever reached the page cache is the same as no password after a power cut.
+  sync "${ENV_FILE}" 2>/dev/null || sync
 }
+
+# ---- end env helpers
 
 if [ "${SHOW_ONLY}" -eq 1 ]; then
   echo "clock    (the controller)   password in .env as MQTT_PASSWORD"
@@ -117,6 +155,7 @@ step "Checking Mosquitto"
 have mosquitto || die "mosquitto is not installed: sudo apt-get install -y mosquitto mosquitto-clients"
 have mosquitto_passwd || die "mosquitto_passwd is missing: sudo apt-get install -y mosquitto"
 ok "$(mosquitto -h 2>&1 | head -1)"
+env_check_intact
 
 if ! have mosquitto_pub || ! have mosquitto_sub; then
   warn "mosquitto-clients is not installed, so the round-trip check at the end"
