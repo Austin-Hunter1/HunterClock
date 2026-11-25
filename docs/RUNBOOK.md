@@ -80,12 +80,40 @@ python3 -c "import secrets; print(secrets.token_hex(32))"   # for CLOCK_SECRET_K
 the one secret here that has to exist in the physical world too — on a label
 inside the cabinet (section 11).
 
-If Mosquitto does not yet have the `clock` user:
+### 1.5a Set up the broker
 
 ```bash
-sudo mosquitto_passwd -c /etc/mosquitto/passwd clock
-sudo systemctl restart mosquitto
+./deploy/mosquitto-setup.sh
 ```
+
+**Do not skip this because Mosquitto is "already running".** A Mosquitto 2.x
+with no listener configured binds loopback only and refuses anonymous clients.
+The controller is on localhost so it works perfectly, and the six ESP32 display
+nodes are on the house WiFi and cannot connect at all. The symptom is six dark
+bezels and no error anywhere.
+
+The script writes a listener, two accounts and an ACL, generates the passwords
+into `.env`, and then proves it works by publishing and subscribing as both
+accounts — including checking that the display account is *refused* where it
+should be. A broker that starts is not the same as a broker that works.
+
+| Account | Who | Can do |
+|---|---|---|
+| `clock` | the controller | everything under `clock/`, read `owntracks/` |
+| `display` | the six ESP32 nodes | read their display topic, write their own status |
+| `phone` | OwnTracks, if used | write `owntracks/` and nothing else |
+
+The split exists because each display node keeps its MQTT password in a plain
+`config.json` on its own flash, and anyone who can unscrew a bezel can read it.
+With one shared account that password could publish to
+`clock/location/<person>` and move every hand on the clock. With the roles
+split, the worst it does is repaint a display.
+
+**After running it, change each node's `config.json`** from `"mqtt_user":
+"clock"` to `"mqtt_user": "display"` with the password the script prints. The
+shipped example still says `clock`.
+
+The ACL is tested against a real broker in `controller/tests/test_mosquitto_acl.py`.
 
 ### 1.6 Edit the config
 
@@ -780,6 +808,10 @@ journalctl -u clockd --since "1 hour ago" | grep -i error
 
 # restart
 sudo systemctl restart clockd
+
+# the broker
+./deploy/mosquitto-setup.sh --show          # which accounts exist
+journalctl -u mosquitto -f                  # who is connecting and failing
 
 # watch MQTT
 mosquitto_sub -h localhost -u clock -P "$MQTT_PASSWORD" -t 'clock/#' -v

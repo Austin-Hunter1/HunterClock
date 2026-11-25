@@ -24,8 +24,8 @@
 #   7. installs the fallback WiFi setup hotspot
 #   8. starts the service and tells you where the UI is
 #
-# It does NOT configure Mosquitto (already running per the build plan), join
-# Tailscale (see deploy/tailscale-setup.sh) or add WiFi (deploy/add-wifi.sh).
+# It does NOT configure Mosquitto (deploy/mosquitto-setup.sh), join Tailscale
+# (deploy/tailscale-setup.sh) or add WiFi (deploy/add-wifi.sh).
 
 set -euo pipefail
 
@@ -102,9 +102,18 @@ fi
 
 if ! have mosquitto; then
   warn "mosquitto is not installed. The build plan says it is already running;"
-  warn "if not: sudo apt-get install mosquitto mosquitto-clients"
-else
+  warn "if not: sudo apt-get install -y mosquitto mosquitto-clients"
+elif [ ! -f /etc/mosquitto/conf.d/weasley.conf ]; then
   ok "mosquitto present"
+  # Worth saying plainly: a broker with no listener configured is running and
+  # reachable by nothing, so the six display nodes will never connect and the
+  # symptom is six dark bezels rather than an error anywhere.
+  warn "but it is not set up for this clock yet. The controller talks to it"
+  warn "over localhost and will work; the ESP32 display nodes are on the house"
+  warn "WiFi and cannot connect until a listener and accounts exist:"
+  warn "  ./deploy/mosquitto-setup.sh"
+else
+  ok "mosquitto present and configured for the clock"
 fi
 
 # ----------------------------------------------------------- 3. virtualenv
