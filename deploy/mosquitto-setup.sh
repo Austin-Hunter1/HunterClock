@@ -53,6 +53,20 @@ die()   { printf '    %sx%s %s\n' "${RED}" "${OFF}" "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 sudo_if_needed() { if [ "$(id -u)" -eq 0 ]; then "$@"; else sudo "$@"; fi; }
 
+# Mosquitto 2.x warns about a password or ACL file that is world readable or
+# not owned by the user it drops to, and says plainly:
+#   "Future versions will refuse to load this file."
+# A warning today is a broker that will not start after some future apt
+# upgrade, which on a clock in another state is a long way to drive. So set
+# them the way Mosquitto asks for now.
+secure_for_mosquitto() {  # secure_for_mosquitto <path>
+  [ -e "$1" ] || return 0
+  if getent passwd mosquitto >/dev/null 2>&1; then
+    sudo_if_needed chown mosquitto:mosquitto "$1"
+  fi
+  sudo_if_needed chmod 0600 "$1"
+}
+
 # Read a variable out of .env without sourcing it: .env is a systemd
 # EnvironmentFile, not a shell script, and sourcing one with an unquoted `#`
 # or a bare `$` in a password does surprising things.
@@ -108,6 +122,52 @@ if sudo_if_needed grep -rqsE '^\s*per_listener_settings\s+true' \
     deploy/mosquitto-weasley.conf under the listener by hand."
 fi
 
+# What does this broker already say?
+#
+# A broker that is "already running" is usually already configured, and most of
+# Mosquitto's security settings are single-valued: declaring password_file a
+# second time is not an override, it is
+#     Error: Duplicate password_file value in configuration
+# and the broker refuses to start at all. So read what is there and add only
+# what is missing, rather than assuming a stock install.
+# Both of these return nothing, successfully, when the directive is absent.
+# `grep` exits 1 on no match, and under `set -euo pipefail` that would take
+# the whole script down -- on exactly the stock broker it is meant to handle.
+declared() {  # declared <directive> -> prints the file it is declared in
+  { sudo_if_needed grep -rlsE "^[[:space:]]*$1[[:space:]]" \
+      /etc/mosquitto/mosquitto.conf /etc/mosquitto/conf.d/ 2>/dev/null \
+      || true; } | { grep -v "${CONF_DEST}" || true; } | head -1
+}
+
+declared_value() {  # declared_value <directive> -> prints its value
+  { sudo_if_needed grep -rhsE "^[[:space:]]*$1[[:space:]]" \
+      /etc/mosquitto/mosquitto.conf /etc/mosquitto/conf.d/ 2>/dev/null \
+      || true; } | { grep -v "^[[:space:]]*#" || true; } | head -1 \
+    | awk '{print $2}'
+}
+
+EXISTING_PASSWD_IN="$(declared password_file)"
+EXISTING_ACL_IN="$(declared acl_file)"
+EXISTING_LISTENER_IN="$(declared listener)"
+
+if [ -n "${EXISTING_PASSWD_IN}" ]; then
+  PASSWD_DEST="$(declared_value password_file)"
+  ok "this broker already has a password file: ${PASSWD_DEST}"
+  ok "  (declared in ${EXISTING_PASSWD_IN}; accounts will be added to it)"
+fi
+if [ -n "${EXISTING_LISTENER_IN}" ]; then
+  ok "this broker already has a listener (${EXISTING_LISTENER_IN}); keeping it"
+fi
+if [ -n "${EXISTING_ACL_IN}" ]; then
+  fail "this broker already has an acl_file, declared in:"
+  fail "    ${EXISTING_ACL_IN}  ->  $(declared_value acl_file)"
+  fail ""
+  fail "Two acl_file lines is a duplicate-value error and the broker will not"
+  fail "start. Merge the rules from deploy/mosquitto-weasley.acl into that file"
+  fail "by hand, then re-run with the accounts only."
+  exit 1
+fi
+
 # -------------------------------------------------------------- passwords
 
 step "Accounts"
@@ -146,18 +206,25 @@ fi
 # Build the password file in a temp copy, then move it into place, so a failure
 # half way through does not leave the broker with a file it cannot read.
 PASSWD_TMP="$(mktemp)"
-trap 'rm -f "${PASSWD_TMP}"' EXIT
-: > "${PASSWD_TMP}"
+CONF_TMP="$(mktemp)"
+trap 'rm -f "${PASSWD_TMP}" "${CONF_TMP}"' EXIT
+# Start from whatever is already there. The broker may carry accounts this
+# clock knows nothing about, and the `clock` account's existing password is
+# the one already in .env and already working -- rewriting the file from
+# scratch would lock out anything else using this broker.
+if sudo_if_needed test -f "${PASSWD_DEST}"; then
+  sudo_if_needed cat "${PASSWD_DEST}" > "${PASSWD_TMP}"
+  EXISTING_USERS="$(cut -d: -f1 < "${PASSWD_TMP}" | paste -sd, -)"
+  ok "keeping the accounts already in ${PASSWD_DEST}: ${EXISTING_USERS:-none}"
+else
+  : > "${PASSWD_TMP}"
+fi
 mosquitto_passwd -b "${PASSWD_TMP}" clock "${CLOCK_PASSWORD}"
 mosquitto_passwd -b "${PASSWD_TMP}" display "${DISPLAY_PASSWORD}"
 [ "${WITH_PHONES}" -eq 1 ] && mosquitto_passwd -b "${PASSWD_TMP}" phone "${PHONE_PASSWORD}"
 
 sudo_if_needed install -o root -g root -m 0600 "${PASSWD_TMP}" "${PASSWD_DEST}"
-# Mosquitto drops to the `mosquitto` user and must still be able to read it.
-if getent passwd mosquitto >/dev/null 2>&1; then
-  sudo_if_needed chown root:mosquitto "${PASSWD_DEST}"
-  sudo_if_needed chmod 0640 "${PASSWD_DEST}"
-fi
+secure_for_mosquitto "${PASSWD_DEST}"
 ok "wrote ${PASSWD_DEST}"
 
 # ------------------------------------------------------------------ config
@@ -166,6 +233,7 @@ step "Configuration"
 sudo_if_needed mkdir -p /etc/mosquitto/conf.d
 
 install_if_changed() {  # install_if_changed <src> <dest> <description>
+  # cmp through sudo: the destination may be 0600 and owned by mosquitto.
   if sudo_if_needed cmp -s "$1" "$2" 2>/dev/null; then
     ok "$3 already up to date"
     return 1
@@ -177,7 +245,58 @@ install_if_changed() {  # install_if_changed <src> <dest> <description>
 
 CHANGED=0
 install_if_changed "${REPO_ROOT}/deploy/mosquitto-weasley.acl" "${ACL_DEST}" "ACL" && CHANGED=1
-install_if_changed "${REPO_ROOT}/deploy/mosquitto-weasley.conf" "${CONF_DEST}" "listener" && CHANGED=1
+secure_for_mosquitto "${ACL_DEST}"
+
+# Build the drop-in from the committed file, commenting out any directive the
+# broker already declares elsewhere. Mosquitto treats a second password_file,
+# acl_file or allow_anonymous as a fatal duplicate rather than an override --
+#     Error: Duplicate password_file value in configuration
+# -- and a second listener on the same port cannot bind. So on a broker that
+# somebody has already set up, shipping the committed file verbatim stops it
+# booting, which is exactly what happened the first time this was run on the
+# real Pi.
+cp "${REPO_ROOT}/deploy/mosquitto-weasley.conf" "${CONF_TMP}"
+
+SKIPPED=""
+for directive in listener allow_anonymous password_file max_connections \
+                 max_queued_messages; do
+  WHERE="$(declared "${directive}")"
+  [ -n "${WHERE}" ] || continue
+  "${REPO_ROOT}/deploy/_comment_out.py" "${CONF_TMP}" "${directive}" "${WHERE}"
+  SKIPPED="${SKIPPED} ${directive}"
+done
+
+# max_connections is a *per-listener* option, and that is a sharper edge than
+# it looks. Mosquitto attaches it to whatever listener is current, so meeting
+# one in a file that declares no listener makes it create the DEFAULT
+# listener -- a second bind on 1883, and
+#     Error: Address already in use
+# from a config with exactly one `listener` line in it. So when we are
+# inheriting somebody else's listener, the listener's own settings are theirs
+# to make, and we say nothing about them.
+if [ -n "${EXISTING_LISTENER_IN}" ]; then
+  for directive in max_connections max_queued_messages; do
+    case " ${SKIPPED} " in
+      *" ${directive} "*) continue ;;
+    esac
+    "${REPO_ROOT}/deploy/_comment_out.py" "${CONF_TMP}" "${directive}" \
+      "${EXISTING_LISTENER_IN}'s listener"
+    SKIPPED="${SKIPPED} ${directive}"
+  done
+fi
+
+# acl_file is the one directive that must be added rather than inherited; an
+# existing one is refused further up, because merging somebody else's rules
+# is not something to do behind their back.
+{
+  printf '\n# ---- added by deploy/mosquitto-setup.sh ----\n'
+  printf 'acl_file %s\n' "${ACL_DEST}"
+} >> "${CONF_TMP}"
+
+if [ -n "${SKIPPED}" ]; then
+  ok "inheriting from this broker's own config:${SKIPPED}"
+fi
+install_if_changed "${CONF_TMP}" "${CONF_DEST}" "drop-in" && CHANGED=1
 
 # ----------------------------------------------------------------- restart
 

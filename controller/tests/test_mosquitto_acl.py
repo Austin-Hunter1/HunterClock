@@ -83,7 +83,12 @@ def broker(tmp_path_factory):
     text = CONF.read_text(encoding="utf-8")
     text = text.replace("listener 1883", f"listener {port} 127.0.0.1")
     text = text.replace("/etc/mosquitto/weasley.passwd", str(passwd))
-    text = text.replace("/etc/mosquitto/weasley.acl", str(acl))
+    # The committed conf deliberately does not set acl_file -- the setup
+    # script appends it, so the path cannot drift between the two files. The
+    # fixture has to do the same, or this whole module silently tests a
+    # broker with no access control and every negative assertion passes for
+    # the wrong reason.
+    text += f"\nacl_file {acl}\n"
     # Running as root, mosquitto drops to the `mosquitto` user and then cannot
     # read a password file in a temp directory. On the Pi that is handled by
     # chowning it; here, just do not drop.
