@@ -36,7 +36,7 @@ def _offenders(path):
             and isinstance(node.value, ast.Name)
             and node.value.id in BUILTIN_EXCEPTIONS
         ):
-            yield "%s:%d %s.__init__" % (path.name, node.lineno, node.value.id)
+            yield f"{path.name}:{node.lineno} {node.value.id}.__init__"
 
 
 def test_no_builtin_exception_init_calls():
