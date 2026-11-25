@@ -1,6 +1,7 @@
 # PROGRESS
 
-Running log for the tracking system. Branch `claude/tracking-system`.
+Running log for the tracking system. Branches `claude/tracking-system` and,
+for the Pi controller work from push 17 on, `claude/pi-controller`.
 
 **Legend**
 *Tested in sim* — exercised by pytest or by `make sim` on a Linux container.
@@ -10,10 +11,13 @@ has ever run it.
 
 ---
 
-## Status: 2026-11-04, push 8
+## Status: 2026-11-25, push 20
 
-**P0 and P1 are complete. P2 is done except the fallback hotspot.**
-528 tests pass; `ruff check .` is clean; the ESP32 firmware compiles.
+**P0, P1 and P2 are complete.** The fallback hotspot was the last open item.
+685 tests pass; `ruff check .` is clean; the ESP32 firmware compiles.
+
+A Raspberry Pi has been powered on and is reachable, but nothing in this
+branch has run on it yet. Everything below is still simulation.
 
 ---
 
@@ -171,21 +175,61 @@ hardware was connected in the session that wrote it. Specifically:
   captive portal, and OTA.
 * **Alert delivery.** The logic is tested against a fake HTTP client; no real
   request has been made to healthchecks.io or ntfy.sh.
+* **The fallback hotspot**, all of it. `nmcli` is exercised only against a
+  simulator. Unverified on hardware: whether the Pi's `brcmfmac` firmware will
+  do AP mode on this board at all (the assumption the whole feature rests on),
+  whether the captive-portal popup fires on a given iOS or Android version,
+  binding port 80 as root, whether the systemd hardening lets it reach
+  NetworkManager over D-Bus, and whether 5 / 10 / 3 minutes are the right
+  timings.
+* **The broker configuration.** The listener, accounts and ACL are tested
+  against a real mosquitto 2.0.18 *here*, which is further than most of this
+  branch gets, but `deploy/mosquitto-setup.sh` has not been run on the Pi and
+  no ESP32 has ever connected to the broker.
 
 ---
 
 ## Not done
 
-* **Fallback hotspot on the Pi** for on-site setup — P2, the one remaining
-  item. The ESP32 nodes have their own captive portal; the Pi does not. In
-  practice Tailscale plus two pre-saved WiFi networks covers the same ground,
-  and a hotspot the Pi falls back to is another thing that can go wrong
-  unattended.
+* **Nothing from P0–P2.** The fallback hotspot, which was the last open item
+  and is described above, is built.
 * **Home Assistant source** is now tested end to end against a fake Home
   Assistant serving realistic `device_tracker` payloads: the full route from an
   entity to commanded microsteps, all six spec angles, plus a wrong token, a
   missing entity, HA being down, a phone with no coordinates, and a coarse fix
   being filtered. Still never polled a *real* Home Assistant.
+
+---
+
+## Done since push 16
+
+### The fallback hotspot (P2, the last open item)
+`controller/clockd/hotspot/` — its own systemd unit, its own small config, and
+no import of `clockd.config` anywhere (a test walks the ASTs to keep it that
+way), because the failures most likely to need a way in are the ones that stop
+`clockd` starting.
+
+The objection recorded against building this at all was that a hotspot is
+another thing that can go wrong unattended. That was right, and it shaped the
+design: the Pi has one radio, so **while the access point is up the clock is
+offline**. The hotspot is therefore never a destination. Up after five minutes
+offline, down again after ten with nobody on the page, three minutes letting
+NetworkManager retry the saved networks, then back up. A long power cut now
+fixes itself with nobody touching anything.
+
+### The broker (`deploy/mosquitto-setup.sh`)
+`install.sh` skipped Mosquitto because the build plan said it was already
+running. Running is not reachable: Mosquitto 2.x with no listener binds
+loopback only. The controller is on localhost so it works, and the six display
+nodes would never have connected — six dark bezels and no error anywhere.
+Accounts are split by role, because a node keeps its password in cleartext on
+its own flash and a shared `clock` account would let anyone who can unscrew a
+bezel move every hand.
+
+### Find My, worked out end to end
+Apple still has no public API, so the real question was which Home Assistant
+entity a hand should follow, and the shipped config had all six on the fragile
+answer. Now `person.<name>`, which falls back when Find My goes quiet.
 
 ---
 
@@ -307,6 +351,7 @@ hardware was connected in the session that wrote it. Specifically:
   radius however it is arranged. 5 mm is the most the level ordering allows
   before Micah's neck drops under 22 mm, and `build_hand` now refuses rather
   than trusting that arithmetic.
+<<<<<<< HEAD
 * **Push 17** — the motor side: a bench bring-up tool, and five failure modes
   that were silent. Branch `claude/pico-motors`.
 
@@ -432,3 +477,43 @@ hardware was connected in the session that wrote it. Specifically:
   or a tight bearing. `tools/bench.py check` and `late` are how the owner
   checks the three things this cannot: whether anything binds, whether the loop
   keeps up, and where the resonance actually is.
+=======
+* **Push 17** — the fallback hotspot. Tested against a fake NetworkManager
+  that parses real `nmcli` argv and refuses what the real one refuses, which
+  immediately caught that the error translation missed nmcli's actual wording
+  for a missing network (`No suitable network with SSID 'x' found`), so the
+  family would have been shown raw nmcli text. Three traps the design had to
+  dodge, all of which would otherwise have been found on a Pi 2000 km away:
+  `ipv4.method shared` makes the interface look `connected` with an address,
+  so counting it as online would have left the clock serving a setup page for
+  ever; an AP profile that autoconnects can win the radio at boot, which is
+  the exact failure the feature exists to prevent; and a failed join leaves a
+  profile NetworkManager retries indefinitely in preference to a working
+  network. Also found that `StartLimitIntervalSec=0` had been sitting in
+  `[Service]` in `clockd.service`, where systemd ignores it — the "do not give
+  up" comment above it had never been true.
+
+* **Push 18** — Find My pointed at `person.` entities rather than
+  `device_tracker.`, so a hand keeps moving when iCloud stops answering. Not a
+  free win, and the tests say so: a person entity carries no `battery_level`,
+  because it has no single device to have the battery of. `hass_check.py` now
+  lists person entities first and says when somebody is wired to a tracker a
+  person entity already covers; it also grew 19 tests of its own against a
+  real HTTP server, including that it never prints the token. Runbook 2.2
+  rewritten against what Home Assistant's own docs say — and *not* against a
+  third-party README claiming the official integration went cache-only, which
+  the official docs contradict.
+
+* **Push 19** — `install.sh --no-hotspot`, because installing a thing that
+  deliberately takes the Pi off the WiFi, for the first time, on a Pi you are
+  reaching over that WiFi, is a way to lose the Pi.
+
+* **Push 20** — the broker. Twenty-one tests start a **real** mosquitto 2.0.18
+  with the committed config and ACL and check what actually arrives, which
+  caught a wrong assumption: a subscription to `clock/#` is *accepted* and
+  then filtered per topic on delivery, so "the subscribe is refused" was never
+  the property to test. The real one is that a display node can ask for
+  everything and still see nothing it should not. The setup script proves the
+  same thing on the Pi before it finishes, because a broker that starts is not
+  a broker that works.
+>>>>>>> 765e5bdd4b45d88f0a25e00e63c04d17d5882040

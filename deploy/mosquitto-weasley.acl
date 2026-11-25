@@ -1,0 +1,51 @@
+# Who may touch which topics on the Weasley Clock's broker.
+#
+# Installed to /etc/mosquitto/weasley.acl by deploy/mosquitto-setup.sh.
+#
+# The point of splitting the roles is the display nodes. Six ESP32 boards sit
+# in the cabinet on the house WiFi, each with its MQTT password in a plain
+# config.json on its own flash. Anyone who can unscrew a bezel can read it. If
+# that password were the controller's, it would let them publish fake
+# positions into clock/location/<person> and move every hand on the clock.
+# With the roles split, the worst it does is let them repaint their own
+# display.
+#
+# The topic tree is in docs/ARCHITECTURE.md and is the Pico firmware's and the
+# node firmware's contract as much as the controller's, so it is not changed
+# here -- only restricted.
+
+# -- the controller -------------------------------------------------------
+# Owns the whole clock/ tree: publishes state, display and system topics,
+# subscribes to clock/location/<person> for the generic source.
+user clock
+topic readwrite clock/#
+# OwnTracks publishes outside the clock/ tree. Read-only: the controller has
+# no business writing to a phone's topic.
+topic read owntracks/#
+
+# -- the six display nodes ------------------------------------------------
+# Each node subscribes to its own clock/display/<person> and publishes its own
+# clock/node/<person>/status.
+#
+# These are "+" rather than per-node patterns because Mosquitto can only match
+# a pattern against the username or the client id, and the nodes' client id is
+# weasley-<person>-<mac> while the topic carries the bare <person>. So one node
+# can in principle read another's display topic and write another's status.
+# That is a repaint and a wrong status line, by someone who already has
+# physical access to the cabinet -- a long way short of moving the hands.
+user display
+topic read clock/display/+
+# So a node can grey itself out when the controller goes away (Last Will).
+topic read clock/system/status
+topic write clock/node/+/status
+
+# -- phones, if OwnTracks is ever used ------------------------------------
+# Not created by default: deploy/mosquitto-setup.sh --with-phones adds it.
+# Write-only, and only into the OwnTracks tree -- a phone never needs to read
+# anything from this broker, and should not be able to see where anyone else
+# is.
+user phone
+topic write owntracks/#
+
+# No `pattern` or `topic` lines outside a `user` block: an unmatched client
+# gets no access at all, which is what we want for anything unexpected.
