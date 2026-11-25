@@ -53,6 +53,27 @@ MIN_SPEED = 1.0  # microsteps/s; floors the step interval at 1 s
 DEFAULT_MAX_SPEED = 800.0
 DEFAULT_ACCEL = 1600.0
 
+#: How late a STEP pulse may be and still be caught up by bunching it against
+#: the next one, measured in whole step intervals.
+#:
+#: This number exists because of what a *silent* failure costs here.  The main
+#: loop can be away for a while -- a MicroPython GC pass, a flash write, a flood
+#: of serial traffic -- and when it comes back, every step whose deadline passed
+#: while it was gone is due at once.  Honouring all of them means emitting a
+#: burst of pulses as fast as the loop can run: a 100 ms absence at 400
+#: microsteps/s is 40 pulses in about a millisecond, which is 40 times the
+#: commanded rate.  No stepper follows that.  The motor misses most of them, the
+#: firmware counts all of them, and the position is quietly wrong by up to 40
+#: microsteps -- for good, because nothing here measures anything.
+#:
+#: So: catch up small jitter, which keeps the average rate honest, and re-base
+#: the schedule on the current time when the lateness is larger than that.  The
+#: move then finishes a little later than planned, which costs nothing, instead
+#: of finishing on time against a hand that is no longer where the arithmetic
+#: says.  :attr:`Axis.late` counts the re-bases so a starved loop is visible in
+#: ``status`` rather than being inferred from a drifting clock face.
+MAX_CATCHUP_INTERVALS = 1
+
 
 def clamp(value, low, high):
     """Clamp ``value`` into ``[low, high]``."""
@@ -91,6 +112,7 @@ class Axis:
         "next_step_us",
         "steps_taken",
         "direction",
+        "late",
     )
 
     def __init__(self, index=0, max_speed=DEFAULT_MAX_SPEED, accel=DEFAULT_ACCEL):
@@ -103,6 +125,7 @@ class Axis:
         self.next_step_us = None
         self.steps_taken = 0
         self.direction = 1
+        self.late = 0
 
     # -- configuration ---------------------------------------------------
 
@@ -149,12 +172,27 @@ class Axis:
 
         Sets the target to the closest reachable stopping point, so the normal
         deceleration ramp does the work.  Already-stopped axes do nothing.
+
+        Calling this repeatedly on an axis that is already braking must not
+        move the stopping point further away, or the axis never arrives.  That
+        is not hypothetical arithmetic: ``ceil(v**2 / 2a)`` rounds the braking
+        distance up, and at the last step of a ramp the rounding is a whole
+        microstep, so each fresh ``stop`` granted one more step.  A caller that
+        stopped once per loop iteration -- a held UI button, or the watchdog
+        enforcing silence -- got a hand that crawled at 56 microsteps/s for as
+        long as the stops kept coming, with ``moving`` true throughout and
+        nothing in the reports suggesting anything was wrong.
         """
         if not self.is_moving():
             self.target = self.position
             return
+        direction = sign(self.velocity) or sign(self.target - self.position)
         braking_steps = int(math.ceil(self.velocity * self.velocity / (2.0 * self.accel)))
-        self.target = self.position + sign(self.velocity) * braking_steps
+        stop_target = self.position + direction * braking_steps
+        if direction > 0:
+            self.target = min(self.target, stop_target)
+        else:
+            self.target = max(self.target, stop_target)
         if self.next_step_us is None:
             self.next_step_us = now_us
 
@@ -227,11 +265,19 @@ class Axis:
         v = math.sqrt(squared)
         return v if v >= MIN_SPEED else 0.0
 
-    def take_step(self):
+    def take_step(self, now_us=None):
         """Advance one microstep and schedule the next.
 
         The caller must already have produced the STEP pulse in the direction
         given by :attr:`direction`.
+
+        Args:
+            now_us: Current monotonic microseconds, when the caller has it.
+                Supplying it lets the axis notice that it is running late and
+                re-base its schedule instead of bunching pulses the motor
+                cannot follow -- see :data:`MAX_CATCHUP_INTERVALS`.  Omitting it
+                keeps the old behaviour of scheduling purely off the previous
+                deadline, which is what offline simulation wants.
 
         Returns:
             The direction actually stepped (``+1`` or ``-1``), or ``0`` if the
@@ -261,8 +307,14 @@ class Axis:
             self.velocity = self._next_velocity()
 
         self._update_direction()
-        interval = int(1_000_000.0 / max(abs(self.velocity), MIN_SPEED))
-        self.next_step_us = (self.next_step_us or 0) + max(interval, 1)
+        interval = max(int(1_000_000.0 / max(abs(self.velocity), MIN_SPEED)), 1)
+        due = (self.next_step_us or 0) + interval
+        if now_us is not None and due < now_us - MAX_CATCHUP_INTERVALS * interval:
+            # The loop was away for longer than we are willing to make up by
+            # bunching.  Start again from now; the move simply takes longer.
+            due = now_us + interval
+            self.late += 1
+        self.next_step_us = due
         return stepped
 
 
@@ -301,6 +353,20 @@ class MotionController:
     def positions(self):
         """Current unwrapped positions, in microsteps, as a list."""
         return [a.position for a in self.axes]
+
+    def late_steps(self):
+        """Total times an axis had to re-base its schedule, across all axes.
+
+        Non-zero means the main loop was away long enough that honouring the
+        missed deadlines would have meant a burst of pulses -- see
+        :data:`MAX_CATCHUP_INTERVALS`.  No step was lost; some arrived later
+        than planned.  A number that keeps climbing says the Pico is being
+        starved and the hands are running slower than commanded.
+        """
+        total = 0
+        for a in self.axes:
+            total += a.late
+        return total
 
     def any_moving(self):
         """True while at least one axis still has work."""
@@ -378,7 +444,7 @@ class MotionController:
                 direction = a.direction
                 if self._pulse is not None:
                     self._pulse(a.index, direction)
-                a.take_step()
+                a.take_step(now_us)
                 emitted += 1
                 self.step_count += 1
                 moved = True
@@ -418,7 +484,7 @@ class MotionController:
                         self._pulse(a.index, a.direction)
                     direction = a.direction
                     velocity = a.velocity
-                    a.take_step()
+                    a.take_step(now)
                     self.step_count += 1
                     if trace is not None:
                         trace.append((now, a.index, direction, a.position, velocity))

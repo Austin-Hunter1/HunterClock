@@ -25,8 +25,8 @@ ifeq ($(wildcard $(VENV)/bin/python),)
 endif
 
 .DEFAULT_GOAL := help
-.PHONY: help venv install test test-fast lint format sim sim-fast sim-mqtt \
-        screenshots firmware-upload clean check
+.PHONY: help venv install test test-fast test-firmware lint format sim sim-fast \
+        sim-mqtt screenshots firmware-upload bench clean check
 
 help:  ## Show this help
 	@echo "Weasley Clock -- make targets"
@@ -51,13 +51,16 @@ test-fast:  ## Run only the fast unit tests (skips integration and API)
 	cd controller && $(abspath $(PY)) -m pytest -q \
 	  --ignore=tests/test_integration.py --ignore=tests/test_api.py
 
+test-firmware:  ## Run the firmware failure-mode tests and the bench tool's tests
+	$(PY) -m pytest -q firmware/pico/tests
+
 lint:  ## Check the whole repo with ruff
 	$(RUFF) check .
 
 format:  ## Apply ruff's safe fixes
 	$(RUFF) check . --fix
 
-check: lint test  ## Lint and test, which is what CI runs
+check: lint test test-firmware  ## Lint and test, which is what CI runs
 
 sim:  ## Start the controller with a fake Pico, fake broker and fake locations
 	@echo "UI at http://127.0.0.1:$(PORT)/  (ctrl-C to stop)"
@@ -73,6 +76,9 @@ sim-mqtt:  ## Sim mode, but against a real local Mosquitto instead of the fake b
 
 screenshots:  ## Re-render the UI screenshots in docs/img/ui (needs playwright)
 	node tools/ui_screenshots.js
+
+bench:  ## Talk to a Pico at the bench (see tools/bench.py; --port sim needs no hardware)
+	$(PY) tools/bench.py $(or $(ARGS),info)
 
 firmware-upload:  ## Copy the firmware onto a connected Pico (needs mpremote)
 	@command -v mpremote >/dev/null || { echo "mpremote not installed: pip install mpremote"; exit 1; }

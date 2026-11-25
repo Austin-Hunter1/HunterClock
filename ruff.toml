@@ -27,6 +27,12 @@ ignore = [
 #           anything touches `machine`.
 "firmware/pico/*.py" = ["UP", "B904", "SIM105", "SIM110", "I001"]
 "tools/pico_sim.py" = ["UP031"]
+# Same reason, one step removed: these import the firmware modules and are
+# written in the firmware's idiom, so that moving a line between them and
+# firmware/pico/ does not mean rewriting it.
+"tools/bench.py" = ["UP031"]
+"tools/motion_check.py" = ["UP031"]
+"firmware/pico/tests/*.py" = ["UP031"]
 # The CAD scripts predate this work and are not part of the tracking system.
 "build_cad.py" = ["ALL"]
 "render_cad.py" = ["ALL"]
