@@ -13,6 +13,8 @@ Either way the Pi side is unchanged: same JSON protocol over serial
 (`docs/PROTOCOL.md`), same `tools/bench.py`, same `clockd`.  Only the serial
 device differs (`/dev/ttyUSB0` instead of `/dev/ttyACM0`).
 
+Diagrams and a pre-power checklist: [esp32-motor-board.html](esp32-motor-board.html).
+
 ## Pin map (silkscreen labels on the 30-pin board)
 
 | Channel | Person | STEP | DIR |

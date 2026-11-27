@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ESP32 Motor + Screen Board</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one bench column. Nets carry colour; everything else stays quiet. */
+:root{
+  --bg:#f4f6f8; --panel:#ffffff; --sunk:#eceff3;
+  --fg:#16202a; --muted:#5c6c7a; --rule:#d2dae1;
+  --brass:#9a6a1c; --signal:#1f5b9e; --hot:#a82e1b; --ok:#2a6b48;
+  --font-sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e151b; --panel:#161f27; --sunk:#1b2630;
+  --fg:#e3eaf0; --muted:#93a4b3; --rule:#2b3a47;
+  --brass:#dda856; --signal:#79b0e8; --hot:#f08a76; --ok:#64bd8c;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0e151b; --panel:#161f27; --sunk:#1b2630;
+  --fg:#e3eaf0; --muted:#93a4b3; --rule:#2b3a47;
+  --brass:#dda856; --signal:#79b0e8; --hot:#f08a76; --ok:#64bd8c;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font-family:var(--font-sans); font-size:16px; line-height:1.62;
+  -webkit-text-size-adjust:100%;
+}
+.wrap{
+  max-width:62rem; margin:0 auto;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:2.5rem 5rem;
+}
+h1,h2,h3{font-weight:600; text-wrap:balance; line-height:1.2; margin:0}
+h1{font-size:clamp(1.9rem,5vw,2.6rem); letter-spacing:-.02em}
+h2{font-size:clamp(1.3rem,3.2vw,1.6rem); letter-spacing:-.01em; margin-top:3.2rem; padding-top:1.2rem; border-top:1px solid var(--rule)}
+h3{font-size:1.02rem; margin-top:1.8rem}
+p,ul,ol{margin:.85rem 0}
+ul,ol{padding-left:1.3rem}
+li{margin:.3rem 0}
+a{color:var(--signal)}
+.lede{font-size:1.1rem; color:var(--muted); max-width:46rem; margin-top:.7rem}
+.eyebrow{
+  font-family:var(--font-mono); font-size:.72rem; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--brass); margin-bottom:.5rem;
+}
+code,.m{font-family:var(--font-mono); font-size:.92em}
+code{background:var(--sunk); padding:.1em .35em; border-radius:3px}
+.scroll{overflow-x:auto; margin:1.1rem 0; -webkit-overflow-scrolling:touch}
+table{border-collapse:collapse; width:100%; min-width:34rem; font-size:.92rem}
+caption{text-align:left; color:var(--muted); font-size:.85rem; padding-bottom:.5rem}
+th,td{text-align:left; padding:.42rem .7rem; border-bottom:1px solid var(--rule); vertical-align:top}
+th{
+  font-family:var(--font-mono); font-size:.72rem; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--muted); font-weight:500;
+  border-bottom:1px solid var(--fg);
+}
+td.n{font-family:var(--font-mono); font-variant-numeric:tabular-nums; white-space:nowrap}
+tbody tr:hover{background:var(--sunk)}
+.net{font-family:var(--font-mono); font-size:.86em; font-weight:500; white-space:nowrap}
+.n12{color:var(--hot)} .n33{color:var(--brass)} .nsig{color:var(--signal)} .ngnd{color:var(--muted)}
+.card{background:var(--panel); border:1px solid var(--rule); border-radius:6px; padding:1.1rem 1.25rem; margin:1.2rem 0}
+.warn{border-left:3px solid var(--hot)}
+.note{border-left:3px solid var(--brass)}
+.card h3{margin-top:0}
+.cols{display:grid; gap:1rem; grid-template-columns:repeat(auto-fit,minmax(15rem,1fr)); margin:1.2rem 0}
+.cols>*{min-width:0}
+.toc{
+  background:var(--panel); border:1px solid var(--rule); border-radius:6px;
+  padding:1rem 1.25rem; margin:2rem 0;
+}
+.toc ol{margin:.4rem 0; columns:2; column-gap:2rem}
+@media (max-width:30rem){.toc ol{columns:1}}
+.toc a{text-decoration:none}
+.toc a:hover{text-decoration:underline}
+/* the board map */
+.map{border-collapse:collapse; min-width:30rem; font-size:.8rem}
+.map th{border-bottom:1px solid var(--rule); text-align:center}
+.map td{border:1px solid var(--rule); padding:.3rem .45rem; text-align:center; font-family:var(--font-mono); white-space:nowrap}
+.map td.row{background:var(--sunk); font-weight:600; text-align:right}
+.map td.free{color:var(--rule)}
+.map td.gut{border:0; background:none; width:1.1rem; padding:0}
+.map td.pin{background:var(--sunk); font-weight:600}
+.map td.use{font-weight:500}
+.key{display:flex; flex-wrap:wrap; gap:.4rem 1.1rem; font-size:.82rem; color:var(--muted); margin:.6rem 0 0}
+.key span::before{content:"■ "; }
+.foot{margin-top:3.5rem; padding-top:1.2rem; border-top:1px solid var(--rule); color:var(--muted); font-size:.88rem}
+/* assembly diagram */
+.dia{margin:1.4rem 0}
+.dia svg{display:block; width:100%; min-width:40rem; max-width:48rem; height:auto}
+.dia .bt{font-family:var(--font-sans); font-size:13px; font-weight:600; fill:var(--fg)}
+.dia .bs{font-family:var(--font-sans); font-size:10.5px; fill:var(--muted)}
+.dia .bh{font-family:var(--font-mono); font-size:10px; fill:var(--hot)}
+.dia .wl{font-family:var(--font-mono); font-size:10px; fill:var(--muted)}
+.dia .dl{font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase}
+.dia .box{fill:var(--panel); stroke-width:1.5}
+.dia .ln{stroke:var(--muted); stroke-width:1.5; fill:none}
+.dia .wire{fill:none; stroke-width:2.6; stroke-linecap:round}
+.dia .pin{font-family:var(--font-mono); font-size:10.5px; fill:var(--fg)}
+.dia .pindim{font-family:var(--font-mono); font-size:10.5px; fill:var(--rule)}
+.dia .tag{font-family:var(--font-mono); font-size:9px; fill:var(--muted)}
+:root{
+  --w-red:#c0392b; --w-black:#2b2b2b; --w-yellow:#a9781a; --w-blue:#1f5b9e;
+  --w-green:#2e7d4f; --w-orange:#c2621c; --w-purple:#7b4fa8;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --w-red:#e8705c; --w-black:#c9cdd2; --w-yellow:#e0b33c; --w-blue:#79b0e8;
+  --w-green:#58b07e; --w-orange:#e89a5a; --w-purple:#b18be0;
+}}
+:root[data-theme="dark"]{
+  --w-red:#e8705c; --w-black:#c9cdd2; --w-yellow:#e0b33c; --w-blue:#79b0e8;
+  --w-green:#58b07e; --w-orange:#e89a5a; --w-purple:#b18be0;
+}
+
+.dia .role{font-family:var(--font-mono); font-size:11px}
+.dia .r-step{fill:var(--signal)} .dia .r-dir{fill:var(--w-green)} .dia .r-en{fill:var(--w-purple)}
+.dia .r-disp{fill:var(--brass)} .dia .r-v33{fill:var(--hot)} .dia .r-gnd{fill:var(--muted)} .dia .r-dim{fill:var(--rule)}
+.dia .pn{font-family:var(--font-mono); font-size:10.5px; fill:var(--fg)}
+.dia .pnd{font-family:var(--font-mono); font-size:10.5px; fill:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="eyebrow">Weasley Clock · bench reference</div>
+<h1>ESP32 Motor + Screen Board</h1>
+<p class="lede">One ESP32 that runs all six stepper drivers <strong>and</strong> one round screen, so every
+other ESP32 stays a screen. It replaces the Pico's logic board while the Pico is out of action. Companion to
+<a href="build-board.html">Driver Board Build</a>: the power board, the driver boards and the motors are built exactly
+as described there.</p>
+
+<div class="card warn">
+  <h3>Not built or run yet</h3>
+  <p>The firmware for this board compiles but has <strong>never run on hardware</strong>, and nothing on this page has been
+  checked against a real board. Dry-fit before soldering, find every pin by the label printed next to it (header order
+  differs between makers), and do the checks in <a href="#before">Before you power anything</a> first.
+  Channel 5 (Micah) is left off because that driver failed.</p>
+</div>
+
+<h2 id="together" style="border-top:0; margin-top:2.2rem; padding-top:0">How it goes together</h2>
+<p>Same three domains as the Pico build. The difference: the logic board is an ESP32, it also carries a screen, and
+the other five ESP32s are the display nodes.</p>
+<div class="dia scroll">
+<svg viewBox="0 0 760 640" role="img" aria-label="Assembly diagram: the Pi, the ESP32 that runs the motors and one screen, the power board, the driver boards, the motors, and the five other display nodes">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--muted)"></path>
+    </marker>
+  </defs>
+  <line x1="520" y1="40" x2="520" y2="600" stroke="var(--rule)" stroke-width="1.5" stroke-dasharray="5 5"></line>
+  <text class="dl" x="540" y="444" fill="var(--brass)">WiFi only</text>
+  <text class="bs" x="540" y="466">The five other display nodes</text>
+  <text class="bs" x="540" y="480">take 5 V from the USB strip</text>
+  <text class="bs" x="540" y="494">and reach the Pi over WiFi.</text>
+  <text class="bs" x="540" y="508">No wire to the motor side.</text>
+
+  <text class="dl" x="20" y="72" fill="var(--signal)">Logic · 5 V and 3.3 V</text>
+  <text class="dl" x="290" y="72" fill="var(--hot)">Motor · 12 V</text>
+  <text class="dl" x="540" y="72" fill="var(--brass)">Displays · 5 V</text>
+
+  <rect class="box" x="20" y="86" width="220" height="54" rx="5" stroke="var(--signal)"></rect>
+  <text class="bt" x="130" y="109" text-anchor="middle">5 V 3 A supply</text>
+  <text class="bs" x="130" y="126" text-anchor="middle">USB-C</text>
+  <rect class="box" x="290" y="86" width="210" height="54" rx="5" stroke="var(--hot)"></rect>
+  <text class="bt" x="395" y="109" text-anchor="middle">12 V 2 A supply</text>
+  <text class="bs" x="395" y="126" text-anchor="middle">2.1 × 5.5 mm, centre positive</text>
+  <rect class="box" x="540" y="86" width="200" height="54" rx="5" stroke="var(--brass)"></rect>
+  <text class="bt" x="640" y="109" text-anchor="middle">USB charging strip</text>
+  <text class="bs" x="640" y="126" text-anchor="middle">5 V, one port per node</text>
+
+  <rect class="box" x="20" y="192" width="220" height="62" rx="5" stroke="var(--signal)"></rect>
+  <text class="bt" x="130" y="215" text-anchor="middle">Raspberry Pi 4</text>
+  <text class="bs" x="130" y="232" text-anchor="middle">runs clockd, Mosquitto</text>
+  <text class="bs" x="130" y="246" text-anchor="middle">hostname weasley-clock</text>
+  <rect class="box" x="290" y="192" width="210" height="62" rx="5" stroke="var(--hot)"></rect>
+  <text class="bt" x="395" y="215" text-anchor="middle">Barrel-jack adapter</text>
+  <text class="bs" x="395" y="232" text-anchor="middle">screw terminals</text>
+  <text class="bs" x="395" y="246" text-anchor="middle">meter the polarity first</text>
+  <rect class="box" x="540" y="192" width="200" height="62" rx="5" stroke="var(--brass)"></rect>
+  <text class="bt" x="640" y="215" text-anchor="middle">5 × ESP32 display node</text>
+  <text class="bs" x="640" y="232" text-anchor="middle">screen only, no motors</text>
+  <text class="bh" x="640" y="246" text-anchor="middle">flash the display-node env</text>
+
+  <rect class="box" x="20" y="306" width="220" height="100" rx="5" stroke="var(--signal)" stroke-width="2.5"></rect>
+  <text class="dl" x="130" y="325" text-anchor="middle" fill="var(--signal)">Logic board</text>
+  <text class="bt" x="130" y="345" text-anchor="middle">ESP32 30-pin dev board</text>
+  <text class="bs" x="130" y="362" text-anchor="middle">runs all six motors</text>
+  <text class="bs" x="130" y="375" text-anchor="middle">+ one GC9A01 screen (7 wires)</text>
+  <text class="bh" x="130" y="394" text-anchor="middle">flash the display-motors env</text>
+  <rect class="box" x="290" y="306" width="210" height="74" rx="5" stroke="var(--hot)"></rect>
+  <text class="dl" x="395" y="325" text-anchor="middle" fill="var(--hot)">Power board</text>
+  <text class="bt" x="395" y="345" text-anchor="middle">5 × 100 µF bulk</text>
+  <text class="bs" x="395" y="362" text-anchor="middle">small solder breadboard</text>
+  <text class="bs" x="395" y="375" text-anchor="middle">star ground lives here</text>
+  <rect class="box" x="540" y="306" width="200" height="74" rx="5" stroke="var(--brass)"></rect>
+  <text class="bt" x="640" y="330" text-anchor="middle">5 × GC9A01 display</text>
+  <text class="bs" x="640" y="347" text-anchor="middle">1.28 in round, in a</text>
+  <text class="bs" x="640" y="360" text-anchor="middle">printed ornate bezel</text>
+
+  <rect class="box" x="20" y="460" width="480" height="96" rx="5" stroke="var(--hot)"></rect>
+  <text class="dl" x="260" y="480" text-anchor="middle" fill="var(--hot)">Driver boards</text>
+  <text class="bt" x="260" y="501" text-anchor="middle">5 × A4988 fitted · 6 × 100 µF · heatsinks</text>
+  <text class="bs" x="260" y="520" text-anchor="middle">channel 5 (Micah) is blank: its driver failed</text>
+  <text class="bs" x="260" y="534" text-anchor="middle">a 330 Ω resistor in every STEP, DIR and ENABLE line</text>
+
+  <rect class="box" x="20" y="590" width="480" height="40" rx="5" stroke="var(--hot)"></rect>
+  <text class="bt" x="260" y="615" text-anchor="middle">Stepper motors · 2 × NEMA23, 4 × NEMA17</text>
+
+  <line class="ln" x1="130" y1="140" x2="130" y2="188" marker-end="url(#ah)"></line>
+  <text class="wl" x="138" y="168">USB-C</text>
+  <line class="ln" x1="395" y1="140" x2="395" y2="188" marker-end="url(#ah)"></line>
+  <text class="wl" x="403" y="168">barrel plug</text>
+  <line class="ln" x1="640" y1="140" x2="640" y2="188" marker-end="url(#ah)"></line>
+  <text class="wl" x="648" y="168">one port each</text>
+
+  <line class="ln" x1="130" y1="254" x2="130" y2="302" marker-end="url(#ah)"></line>
+  <text class="wl" x="138" y="274">USB-A to micro-USB</text>
+  <text class="wl" x="138" y="287">data + 5 V</text>
+  <line class="ln" x1="395" y1="254" x2="395" y2="302" marker-end="url(#ah)"></line>
+  <text class="wl" x="403" y="282">2 screw terminals</text>
+  <line class="ln" x1="640" y1="254" x2="640" y2="302" marker-end="url(#ah)"></line>
+  <text class="wl" x="648" y="282">7 × F-F dupont</text>
+
+  <text class="wl" x="265" y="338" text-anchor="middle">GND</text>
+  <line class="ln" x1="240" y1="348" x2="290" y2="348"></line>
+
+  <line class="ln" x1="130" y1="406" x2="130" y2="456" marker-end="url(#ah)"></line>
+  <text class="wl" x="138" y="428">12 signals + ENABLE</text>
+  <text class="wl" x="138" y="441">+ 3V3 + GND</text>
+  <line class="ln" x1="395" y1="380" x2="395" y2="456" marker-end="url(#ah)"></line>
+  <text class="wl" x="403" y="412">+12 V + GND</text>
+  <text class="wl" x="403" y="425">20 AWG</text>
+
+  <line class="ln" x1="260" y1="556" x2="260" y2="586" marker-end="url(#ah)"></line>
+  <text class="wl" x="268" y="574">4 wires each</text>
+</svg>
+</div>
+<p>The ESP32's <code>GND</code> goes to the power board's ground rail, the star point, so the drivers read STEP and DIR against
+the same ground the ESP32 drives them from. Its USB cable goes to the <strong>Pi</strong> (data and power), not to the charging
+strip.</p>
+
+<div class="toc">
+  <div class="eyebrow" style="margin-bottom:.3rem">Contents</div>
+  <ol>
+    <li><a href="#together">How it goes together</a></li>
+    <li><a href="#pins">Pin map</a></li>
+    <li><a href="#channel">One driver channel</a></li>
+    <li><a href="#screen">The screen</a></li>
+    <li><a href="#before">Before you power anything</a></li>
+    <li><a href="#first">First power-up</a></li>
+    <li><a href="#builds">Which firmware</a></li>
+  </ol>
+</div>
+
+<h2 id="pins">Pin map</h2>
+<p>Every pin in use, drawn on the common 30-pin dev board with the USB socket at the top. Colour follows the role.
+<strong>Match by the printed label, not by position.</strong></p>
+<div class="key">
+  <span style="color:var(--signal)">STEP</span><span style="color:var(--w-green)">DIR</span>
+  <span style="color:var(--w-purple)">ENABLE</span><span style="color:var(--brass)">screen</span>
+  <span style="color:var(--hot)">3V3</span><span style="color:var(--muted)">GND</span>
+</div>
+<div class="dia scroll">
+<svg viewBox="0 0 780 630" role="img" aria-label="ESP32 30-pin board with every pin labelled by what it carries">
+<rect x="250" y="70" width="280" height="540" rx="6" fill="var(--panel)" stroke="var(--fg)" stroke-width="1.5"/>
+<rect x="360" y="58" width="60" height="20" rx="3" fill="var(--sunk)" stroke="var(--rule)"/>
+<text class="tag" x="390" y="50" text-anchor="middle">micro-USB to the Pi</text>
+<rect x="310" y="190" width="160" height="150" rx="3" fill="var(--sunk)" stroke="var(--rule)"/>
+<text class="tag" x="390" y="262" text-anchor="middle">ESP32-WROOM-32</text>
+<text class="tag" x="390" y="278" text-anchor="middle">motors + one screen</text>
+<rect x="250" y="118" width="14" height="14" fill="var(--rule)" stroke="var(--rule)"/>
+<text class="pnd" x="272" y="129">VIN</text>
+<text class="role r-dim" x="208" y="129" text-anchor="end">do not use</text>
+<line x1="216" y1="158" x2="250" y2="158" stroke="var(--muted)" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="250" y="151" width="14" height="14" fill="var(--muted)" stroke="var(--rule)"/>
+<text class="pn" x="272" y="162">GND</text>
+<text class="role r-gnd" x="208" y="162" text-anchor="end">GND, star ground</text>
+<line x1="216" y1="191" x2="250" y2="191" stroke="var(--w-green)" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="250" y="184" width="14" height="14" fill="var(--w-green)" stroke="var(--rule)"/>
+<text class="pn" x="272" y="195">D13</text>
+<text class="role r-dir" x="208" y="195" text-anchor="end">DIR · Elijah</text>
+<rect x="250" y="217" width="14" height="14" fill="var(--rule)" stroke="var(--rule)"/>
+<text class="pnd" x="272" y="228">D12</text>
+<text class="role r-dim" x="208" y="228" text-anchor="end">empty (strapping)</text>
+<line x1="216" y1="257" x2="250" y2="257" stroke="var(--signal)" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="250" y="250" width="14" height="14" fill="var(--signal)" stroke="var(--rule)"/>
+<text class="pn" x="272" y="261">D14</text>
+<text class="role r-step" x="208" y="261" text-anchor="end">STEP · Caleb</text>
+<line x1="216" y1="290" x2="250" y2="290" stroke="var(--signal)" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="250" y="283" width="14" height="14" fill="var(--signal)" stroke="var(--rule)"/>
+<text class="pn" x="272" y="294">D27</text>
+<text class="role r-step" x="208" y="294" text-anchor="end">STEP · Evan</text>
+<line x1="216" y1="323" x2="250" y2="323" stroke="var(--w-green)" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="250" y="316" width="14" height="14" fill="var(--w-green)" stroke="var(--rule)"/>
+<text class="pn" x="272" y="327">D26</text>
+<text class="role r-dir" x="208" y="327" text-anchor="end">DIR · Becky</text>
+<line x1="216" y1="356" x2="250" y2="356" stroke="var(--signal)" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="250" y="349" width="14" height="14" fill="var(--signal)" stroke="var(--rule)"/>
+<text class="pn" x="272" y="360">D25</text>
+<text class="role r-step" x="208" y="360" text-anchor="end">STEP · Becky</text>
+<line x1="216" y1="389" x2="250" y2="389" stroke="var(--w-green)" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="250" y="382" width="14" height="14" fill="var(--w-green)" stroke="var(--rule)"/>
+<text class="pn" x="272" y="393">D33</text>
+<text class="role r-dir" x="208" y="393" text-anchor="end">DIR · Evan</text>
+<line x1="216" y1="422" x2="250" y2="422" stroke="var(--signal)" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="250" y="415" width="14" height="14" fill="var(--signal)" stroke="var(--rule)"/>
+<text class="pn" x="272" y="426">D32</text>
+<text class="role r-step" x="208" y="426" text-anchor="end">STEP · Elijah</text>
+<rect x="250" y="448" width="14" height="14" fill="var(--rule)" stroke="var(--rule)"/>
+<text class="pnd" x="272" y="459">D35</text>
+<rect x="250" y="481" width="14" height="14" fill="var(--rule)" stroke="var(--rule)"/>
+<text class="pnd" x="272" y="492">D34</text>
+<rect x="250" y="514" width="14" height="14" fill="var(--rule)" stroke="var(--rule)"/>
+<text class="pnd" x="272" y="525">VN</text>
+<rect x="250" y="547" width="14" height="14" fill="var(--rule)" stroke="var(--rule)"/>
+<text class="pnd" x="272" y="558">VP</text>
+<rect x="250" y="580" width="14" height="14" fill="var(--rule)" stroke="var(--rule)"/>
+<text class="pnd" x="272" y="591">EN</text>
+<text class="role r-dim" x="208" y="591" text-anchor="end">reset, leave alone</text>
+<line x1="530" y1="125" x2="564" y2="125" stroke="var(--hot)" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="516" y="118" width="14" height="14" fill="var(--hot)" stroke="var(--rule)"/>
+<text class="pn" x="508" y="129" text-anchor="end">3V3</text>
+<text class="role r-v33" x="572" y="129">3V3 to drivers + screen</text>
+<line x1="530" y1="158" x2="564" y2="158" stroke="var(--muted)" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="516" y="151" width="14" height="14" fill="var(--muted)" stroke="var(--rule)"/>
+<text class="pn" x="508" y="162" text-anchor="end">GND</text>
+<text class="role r-gnd" x="572" y="162">GND, screen + star</text>
+<line x1="530" y1="191" x2="564" y2="191" stroke="var(--w-purple)" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="516" y="184" width="14" height="14" fill="var(--w-purple)" stroke="var(--rule)"/>
+<text class="pn" x="508" y="195" text-anchor="end">D15</text>
+<text class="role r-en" x="572" y="195">ENABLE · all six</text>
+<line x1="530" y1="224" x2="564" y2="224" stroke="var(--brass)" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="516" y="217" width="14" height="14" fill="var(--brass)" stroke="var(--rule)"/>
+<text class="pn" x="508" y="228" text-anchor="end">D2</text>
+<text class="role r-disp" x="572" y="228">screen DC</text>
+<line x1="530" y1="257" x2="564" y2="257" stroke="var(--brass)" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="516" y="250" width="14" height="14" fill="var(--brass)" stroke="var(--rule)"/>
+<text class="pn" x="508" y="261" text-anchor="end">D4</text>
+<text class="role r-disp" x="572" y="261">screen RST</text>
+<line x1="530" y1="290" x2="564" y2="290" stroke="var(--w-green)" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="516" y="283" width="14" height="14" fill="var(--w-green)" stroke="var(--rule)"/>
+<text class="pn" x="508" y="294" text-anchor="end">RX2</text>
+<text class="role r-dir" x="572" y="294">DIR · Caleb</text>
+<line x1="530" y1="323" x2="564" y2="323" stroke="var(--signal)" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="516" y="316" width="14" height="14" fill="var(--signal)" stroke="var(--rule)"/>
+<text class="pn" x="508" y="327" text-anchor="end">TX2</text>
+<text class="role r-step" x="572" y="327">STEP · Austin</text>
+<line x1="530" y1="356" x2="564" y2="356" stroke="var(--brass)" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="516" y="349" width="14" height="14" fill="var(--brass)" stroke="var(--rule)"/>
+<text class="pn" x="508" y="360" text-anchor="end">D5</text>
+<text class="role r-disp" x="572" y="360">screen CS</text>
+<line x1="530" y1="389" x2="564" y2="389" stroke="var(--brass)" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="516" y="382" width="14" height="14" fill="var(--brass)" stroke="var(--rule)"/>
+<text class="pn" x="508" y="393" text-anchor="end">D18</text>
+<text class="role r-disp" x="572" y="393">screen SCL</text>
+<line x1="530" y1="422" x2="564" y2="422" stroke="var(--w-green)" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="516" y="415" width="14" height="14" fill="var(--w-green)" stroke="var(--rule)"/>
+<text class="pn" x="508" y="426" text-anchor="end">D19</text>
+<text class="role r-dir" x="572" y="426">DIR · Austin</text>
+<line x1="530" y1="455" x2="564" y2="455" stroke="var(--signal)" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="516" y="448" width="14" height="14" fill="var(--signal)" stroke="var(--rule)"/>
+<text class="pn" x="508" y="459" text-anchor="end">D21</text>
+<text class="role r-step" x="572" y="459">STEP · Micah</text>
+<rect x="516" y="481" width="14" height="14" fill="var(--rule)" stroke="var(--rule)"/>
+<text class="pnd" x="508" y="492" text-anchor="end">RX0</text>
+<text class="role r-dim" x="572" y="492">console, leave alone</text>
+<rect x="516" y="514" width="14" height="14" fill="var(--rule)" stroke="var(--rule)"/>
+<text class="pnd" x="508" y="525" text-anchor="end">TX0</text>
+<text class="role r-dim" x="572" y="525">console, leave alone</text>
+<line x1="530" y1="554" x2="564" y2="554" stroke="var(--w-green)" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="516" y="547" width="14" height="14" fill="var(--w-green)" stroke="var(--rule)"/>
+<text class="pn" x="508" y="558" text-anchor="end">D22</text>
+<text class="role r-dir" x="572" y="558">DIR · Micah</text>
+<line x1="530" y1="587" x2="564" y2="587" stroke="var(--brass)" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="516" y="580" width="14" height="14" fill="var(--brass)" stroke="var(--rule)"/>
+<text class="pn" x="508" y="591" text-anchor="end">D23</text>
+<text class="role r-disp" x="572" y="591">screen SDA</text>
+</svg>
+</div>
+<div class="scroll">
+<table>
+  <caption>One row per hand. The same table is the pin map in <code>firmware/esp32/src/motors.h</code>.</caption>
+  <thead><tr><th>Channel</th><th>Person</th><th>STEP</th><th>DIR</th><th>Motor</th></tr></thead>
+  <tbody>
+    <tr><td class="n">0</td><td>Becky</td><td class="n">D25</td><td class="n">D26</td><td>23HS18 NEMA23</td></tr><tr><td class="n">1</td><td>Evan</td><td class="n">D27</td><td class="n">D33</td><td>23HS18 NEMA23</td></tr><tr><td class="n">2</td><td>Elijah</td><td class="n">D32</td><td class="n">D13</td><td>17HS13 NEMA17</td></tr><tr><td class="n">3</td><td>Caleb</td><td class="n">D14</td><td class="n">RX2 (GPIO16)</td><td>17HS13 NEMA17</td></tr><tr><td class="n">4</td><td>Austin</td><td class="n">TX2 (GPIO17)</td><td class="n">D19</td><td>17HS13 NEMA17</td></tr><tr><td class="n">5</td><td>Micah</td><td class="n">D21</td><td class="n">D22</td><td>not fitted: driver failed</td></tr>
+    <tr><td class="n">all</td><td>ENABLE</td><td class="n" colspan="2">D15, active low</td><td>one wire to every driver</td></tr>
+  </tbody>
+</table>
+</div>
+<div class="card note">
+  <h3>Why these pins</h3>
+  <p><strong>D15</strong> is high at boot, which is the released state, so the drivers stay off until the firmware asks.
+  <strong>D14</strong> pulses briefly at boot, which is harmless while the drivers are disabled. The pins avoid the screen
+  (D2, D4, D5, D18, D23), the other strapping pins (D0, D12), the flash pins (D6 to D11), the console (RX0, TX0) and the
+  input-only pins (D34 to D39).</p>
+</div>
+
+<h2 id="channel">One driver channel</h2>
+<p>All five fitted drivers are wired the same way. The only new part is a <strong>330 Ω resistor in series with every
+STEP, DIR and ENABLE line</strong>, close to the ESP32. A driver that fails can then no longer push real current back
+into the board. The ENABLE line needs just one resistor, at the ESP32 pin, before it splits to the drivers.</p>
+<div class="dia scroll">
+<svg viewBox="0 0 780 420" role="img" aria-label="One A4988 channel: the ESP32 pins through 330 ohm resistors into STEP, DIR and ENABLE, with the other control pins tied to 3V3">
+  <rect x="20" y="60" width="150" height="190" rx="6" fill="var(--panel)" stroke="var(--fg)" stroke-width="1.5"></rect>
+  <text class="dl" x="20" y="44" fill="var(--signal)">ESP32 pins</text>
+  <text class="pn" x="34" y="96">D25</text><text class="tag" x="34" y="108">STEP, Becky</text>
+  <text class="pn" x="34" y="146">D26</text><text class="tag" x="34" y="158">DIR, Becky</text>
+  <text class="pn" x="34" y="196">D15</text><text class="tag" x="34" y="208">ENABLE, shared</text>
+  <text class="pn" x="34" y="236">3V3</text>
+  <rect x="164" y="86" width="12" height="12" fill="var(--signal)"></rect>
+  <rect x="164" y="136" width="12" height="12" fill="var(--w-green)"></rect>
+  <rect x="164" y="186" width="12" height="12" fill="var(--w-purple)"></rect>
+  <rect x="164" y="226" width="12" height="12" fill="var(--hot)"></rect>
+
+  <g fill="var(--panel)" stroke="var(--fg)" stroke-width="1.5">
+    <rect x="240" y="84" width="70" height="16" rx="3"></rect>
+    <rect x="240" y="134" width="70" height="16" rx="3"></rect>
+    <rect x="240" y="184" width="70" height="16" rx="3"></rect>
+  </g>
+  <text class="pn" x="275" y="96" text-anchor="middle">330 Ω</text>
+  <text class="pn" x="275" y="146" text-anchor="middle">330 Ω</text>
+  <text class="pn" x="275" y="196" text-anchor="middle">330 Ω</text>
+  <text class="tag" x="275" y="72" text-anchor="middle">close to the ESP32</text>
+
+  <rect x="470" y="40" width="250" height="300" rx="6" fill="var(--panel)" stroke="var(--fg)" stroke-width="1.5"></rect>
+  <text class="dl" x="470" y="30" fill="var(--hot)">A4988 module (one of five)</text>
+
+  <g class="wire">
+    <path d="M176 92 H240" stroke="var(--signal)"></path><path d="M310 92 H470" stroke="var(--signal)"></path>
+    <path d="M176 142 H240" stroke="var(--w-green)"></path><path d="M310 142 H470" stroke="var(--w-green)"></path>
+    <path d="M176 192 H240" stroke="var(--w-purple)"></path><path d="M310 192 H470" stroke="var(--w-purple)"></path>
+    <path d="M176 232 H440 V262 H470 M440 262 V306 H470" stroke="var(--hot)"></path>
+  </g>
+  <g>
+    <text class="pn" x="480" y="96">STEP</text>
+    <text class="pn" x="480" y="146">DIR</text>
+    <text class="pn" x="480" y="196">ENABLE</text>
+    <text class="pnd" x="480" y="246">MS1 MS2 MS3</text>
+    <text class="pnd" x="480" y="262">RESET SLEEP</text>
+    <text class="tag" x="480" y="278" fill="var(--hot)">all five tied to 3V3</text>
+    <text class="pn" x="480" y="310">VDD</text><text class="tag" x="520" y="310" fill="var(--hot)">to 3V3</text>
+  </g>
+  <g>
+    <text class="pn" x="710" y="70" text-anchor="end">VMOT</text><text class="tag" x="710" y="82" text-anchor="end" fill="var(--hot)">+12 V, 100 µF to GND</text>
+    <text class="pn" x="710" y="120" text-anchor="end">GND</text><text class="tag" x="710" y="132" text-anchor="end">star ground</text>
+    <text class="pn" x="710" y="170" text-anchor="end">2B 2A</text><text class="tag" x="710" y="182" text-anchor="end">GRN · GRN/WHT</text>
+    <text class="pn" x="710" y="220" text-anchor="end">1A 1B</text><text class="tag" x="710" y="232" text-anchor="end">RED · RED/WHT</text>
+    <text class="pn" x="710" y="310" text-anchor="end">GND</text><text class="tag" x="710" y="322" text-anchor="end">logic ground</text>
+  </g>
+  <text class="tag" x="20" y="300" fill="var(--hot)">3V3 feeds VDD and the five tied pins</text>
+  <text class="tag" x="20" y="314" fill="var(--hot)">of every driver, plus the screen.</text>
+  <text class="tag" x="20" y="340" fill="var(--muted)">STEP and DIR go to one driver each;</text>
+  <text class="tag" x="20" y="354" fill="var(--muted)">the ENABLE wire goes to all five.</text>
+</svg>
+</div>
+
+<h2 id="screen">The screen</h2>
+<p>Same seven wires and colours as the display nodes in <a href="build-board.html#displays">Driver Board Build</a>, because
+the motor pins stay clear of them. Only the pins are repeated here:</p>
+<div class="scroll">
+<table>
+  <thead><tr><th>GC9A01 pin</th><th>ESP32 pin</th><th>Colour</th></tr></thead>
+  <tbody>
+    <tr><td class="n">VCC</td><td class="n">3V3</td><td>Red</td></tr>
+    <tr><td class="n">GND</td><td class="n">GND</td><td>Black</td></tr>
+    <tr><td class="n">SCL</td><td class="n">D18</td><td>Yellow</td></tr>
+    <tr><td class="n">SDA</td><td class="n">D23</td><td>Blue</td></tr>
+    <tr><td class="n">DC</td><td class="n">D2</td><td>Green</td></tr>
+    <tr><td class="n">CS</td><td class="n">D5</td><td>Orange</td></tr>
+    <tr><td class="n">RST</td><td class="n">D4</td><td>Purple</td></tr>
+  </tbody>
+</table>
+</div>
+<p>D2 and D5 are strapping pins. If an upload ever fails, pull the DC wire off D2 while flashing.</p>
+
+<h2 id="before">Before you power anything</h2>
+<p>Do these with <strong>everything unplugged</strong> and the ESP32 <strong>not yet seated</strong>, so a fault on the board cannot
+reach it. They are the checks that would have caught the failure that killed the Pico.</p>
+<ol>
+  <li><strong>No driver is fitted for channel 5.</strong> Leave that socket empty and leave D21 and D22 unconnected.</li>
+  <li><strong>Vref is set</strong> on each fitted driver (about 0.8 V on an R100 board, with the 12 V off). See
+      <a href="build-board.html#vref">Setting the current limit</a>.</li>
+  <li><strong>Continuity from VMOT</strong> (the 12 V rail) to every STEP, DIR and ENABLE pad on every driver: none should beep.
+      If one does, that driver is leaking 12 V onto its control pins. Do not fit it.</li>
+  <li><strong>3V3 to GND</strong> on the logic board: it must not beep, and should read hundreds of ohms or more.</li>
+  <li><strong>Neighbouring pads.</strong> Check every pair of adjacent ESP32 header holes for solder bridges, and each
+      resistor's two legs for a bridge across them.</li>
+  <li><strong>Motors are plugged in with the 12 V off.</strong> Never plug or unplug a motor with the 12 V on: the spike
+      kills the driver.</li>
+</ol>
+
+<h2 id="first">First power-up</h2>
+<p>On the Pi. Keep the 12 V <strong>off</strong> for the first two steps.</p>
+<ol>
+  <li>Flash the board (see <a href="#builds">Which firmware</a>), then plug its USB into the Pi.</li>
+  <li>Stop the controller so the port is free: <code>sudo systemctl stop clockd</code></li>
+  <li>Check it answers: <code>.venv/bin/python tools/bench.py --port /dev/ttyUSB0 info</code>
+      (opening the port resets an ESP32; wait a couple of seconds).</li>
+  <li>Switch on the 12 V, then test one channel at a time:
+      <code>.venv/bin/python tools/bench.py --port /dev/ttyUSB0 check --ch 0</code></li>
+  <li>Watch <code>late</code> in <code>status</code> while the screen is drawing. It counts steps that ran behind schedule.
+      Zero, or slowly climbing, is fine. Climbing fast means one ESP32 is not keeping up.</li>
+</ol>
+<p><code>bench.py</code> still prints Pico pin names in its channel labels. Use the table above.</p>
+
+<h2 id="builds">Which firmware</h2>
+<div class="cols">
+  <div class="card"><h3>This board</h3>
+    <p>C++, the <code>display-motors</code> PlatformIO environment. It is the display node plus the motors in one program:
+    the step loop runs on core 0, the screen and MQTT on core 1.</p>
+    <p><code>pio run -e display-motors -t upload</code><br><code>pio run -e display-motors -t uploadfs</code></p>
+  </div>
+  <div class="card"><h3>The other five</h3>
+    <p>The normal display node, screen only: <code>pio run -e display-node -t upload</code>.</p>
+  </div>
+</div>
+<p>The serial port carries the motor protocol on this board, so it prints no log. Use the screen or MQTT status to debug the
+display half.</p>
+
+<div class="foot">
+  <p><strong>Untested on hardware.</strong> Pin assignments come from <code>firmware/esp32/src/motors.h</code>; the pin
+  names assume the common 30-pin DevKit layout. Check your own board's printed labels first.</p>
+  <p>Weasley Clock · companion to Driver Board Build</p>
+</div>
+
+</div>
+</body>
+</html>
