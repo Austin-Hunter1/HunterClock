@@ -71,17 +71,41 @@ except ImportError:  # pragma: no cover - importing this file on a desktop
     import time
 
 #: (STEP, DIR) GPIO numbers per channel, hub level 1 to 6.
-STEP_DIR_PINS = (
-    (2, 3),
-    (4, 5),
-    (6, 7),
-    (8, 9),
-    (10, 11),
-    (12, 13),
-)
+#:
+#: The same firmware runs on a Pico (``sys.platform == "rp2"``) and, as a
+#: stand-in when a Pico is not available, on an ESP32 dev board.  Tests and a
+#: desktop import take the Pico table, which ``tools/bench.py`` labels.
+if sys.platform == "esp32":
+    # 30-pin ESP32 dev board, pins marked Dxx on the silkscreen.  Chosen to
+    # avoid the strapping pins (0, 2, 5, 12, 15), the flash pins (6 to 11),
+    # the console UART (1, 3) and the input-only pins (34 to 39).
+    STEP_DIR_PINS = (
+        (25, 26),  # ch 0 Becky
+        (27, 33),  # ch 1 Evan
+        (32, 13),  # ch 2 Elijah
+        (18, 19),  # ch 3 Caleb
+        (21, 22),  # ch 4 Austin
+        (23, 4),   # ch 5 Micah
+    )
+    #: Shared ENABLE pin for all six A4988s, active low.  RX2 on the silkscreen.
+    ENABLE_PIN = 16
+else:
+    STEP_DIR_PINS = (
+        (2, 3),
+        (4, 5),
+        (6, 7),
+        (8, 9),
+        (10, 11),
+        (12, 13),
+    )
+    #: Shared ENABLE pin for all six A4988s, active low.
+    #: GP14 here; the bench Pico used GP16 after GP14 was bridged to ground.
+    ENABLE_PIN = 14
 
-#: Shared ENABLE pin for all six A4988s, active low.
-ENABLE_PIN = 14
+#: After a reset, Ctrl-C still works for this long before the firmware turns
+#: it off.  It is the way back in to upload new firmware without wiping the
+#: board: reset it and send Ctrl-C inside the window.
+BOOT_GRACE_MS = 1500
 
 #: STEP pulse width.  The A4988 needs 1 us minimum; the spec asks for 5 us, and
 #: at 4800 pulses/s that is a 2.4% duty on the loop, which is affordable.
@@ -346,6 +370,11 @@ def run():  # pragma: no cover - needs a Pico
     # drops to the REPL, leaving ENABLE low and six coils energised with nothing
     # feeding the watchdog.  There is no console on this port in service: the
     # Pi speaks JSON to it.
+    #
+    # Ctrl-C works for BOOT_GRACE_MS after a reset first.  A Ctrl-C in that
+    # window interrupts here, with ENABLE still high, and lands at the REPL so
+    # mpremote can upload without wiping the board.
+    time.sleep_ms(BOOT_GRACE_MS)
     try:
         import micropython
 
