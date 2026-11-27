@@ -76,19 +76,22 @@ except ImportError:  # pragma: no cover - importing this file on a desktop
 #: stand-in when a Pico is not available, on an ESP32 dev board.  Tests and a
 #: desktop import take the Pico table, which ``tools/bench.py`` labels.
 if sys.platform == "esp32":
-    # 30-pin ESP32 dev board, pins marked Dxx on the silkscreen.  Chosen to
-    # avoid the strapping pins (0, 2, 5, 12, 15), the flash pins (6 to 11),
-    # the console UART (1, 3) and the input-only pins (34 to 39).
+    # 30-pin ESP32 dev board, pins marked Dxx on the silkscreen.  The same map
+    # as the C++ build in firmware/esp32/src/motors.h, so one wiring serves
+    # both, and it leaves D2, D4, D5, D18 and D23 free for a GC9A01 display.
+    # Avoids the strapping pins (0, 2, 5, 12), the flash pins (6 to 11), the
+    # console UART (1, 3) and the input-only pins (34 to 39).
     STEP_DIR_PINS = (
         (25, 26),  # ch 0 Becky
         (27, 33),  # ch 1 Evan
         (32, 13),  # ch 2 Elijah
-        (18, 19),  # ch 3 Caleb
-        (21, 22),  # ch 4 Austin
-        (23, 4),   # ch 5 Micah
+        (14, 16),  # ch 3 Caleb
+        (17, 19),  # ch 4 Austin
+        (21, 22),  # ch 5 Micah
     )
-    #: Shared ENABLE pin for all six A4988s, active low.  RX2 on the silkscreen.
-    ENABLE_PIN = 16
+    #: Shared ENABLE pin for all six A4988s, active low.  D15 is high at boot,
+    #: which is "drivers released".
+    ENABLE_PIN = 15
 else:
     STEP_DIR_PINS = (
         (2, 3),

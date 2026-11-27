@@ -26,6 +26,19 @@
 #include "display.h"
 #include "loopfile.h"
 
+#ifdef WITH_MOTORS
+#include "motors.h"
+// UART0 belongs to the motor protocol in this build, so the node's own log goes
+// nowhere (see motors.h).
+struct NullLog : public Print {
+  size_t write(uint8_t) override { return 1; }
+  size_t write(const uint8_t*, size_t n) override { return n; }
+};
+static NullLog LOG;
+#else
+#define LOG Serial
+#endif
+
 #ifndef NODE_FIRMWARE_VERSION
 #define NODE_FIRMWARE_VERSION "0.1.0"
 #endif
@@ -68,14 +81,14 @@ static bool configLoaded = false;
 static bool loadConfig() {
   File file = LittleFS.open("/config.json", "r");
   if (!file) {
-    Serial.println("[config] /config.json not found");
+    LOG.println("[config] /config.json not found");
     return false;
   }
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, file);
   file.close();
   if (error) {
-    Serial.printf("[config] /config.json is not valid JSON: %s\n", error.c_str());
+    LOG.printf("[config] /config.json is not valid JSON: %s\n", error.c_str());
     return false;
   }
   config.person = doc["person"] | "unknown";
@@ -89,7 +102,7 @@ static bool loadConfig() {
   config.loopPath = doc["loop_file"] | "/loop.wcl";
   config.brightness = doc["brightness"] | 255;
   config.showName = doc["show_name"] | true;
-  Serial.printf("[config] person=%s mqtt=%s:%u topic=%s\n",
+  LOG.printf("[config] person=%s mqtt=%s:%u topic=%s\n",
                 config.person.c_str(), config.mqttHost.c_str(),
                 config.mqttPort, config.displayTopic().c_str());
   return config.wifiSsid.length() > 0;
@@ -245,7 +258,7 @@ static void renderOnce() {
 static void onMessage(char *topic, byte *payload, unsigned int length) {
   JsonDocument doc;
   if (deserializeJson(doc, payload, length)) {
-    Serial.println("[mqtt] payload is not JSON");
+    LOG.println("[mqtt] payload is not JSON");
     return;
   }
   state.name = doc["name"] | state.name;
@@ -260,7 +273,7 @@ static void onMessage(char *topic, byte *payload, unsigned int length) {
   }
   state.updatedAtMs = millis();
   state.everReceived = true;
-  Serial.printf("[mqtt] %s: %s (%.3f)\n", topic, state.text.c_str(), state.fraction);
+  LOG.printf("[mqtt] %s: %s (%.3f)\n", topic, state.text.c_str(), state.fraction);
 }
 
 static void publishStatus() {
@@ -285,7 +298,7 @@ static void connectMqtt() {
   lastMqttAttemptMs = millis();
 
   const String clientId = "weasley-" + config.person + "-" + String((uint32_t)ESP.getEfuseMac(), HEX);
-  Serial.printf("[mqtt] connecting to %s:%u as %s\n",
+  LOG.printf("[mqtt] connecting to %s:%u as %s\n",
                 config.mqttHost.c_str(), config.mqttPort, clientId.c_str());
 
   bool connected;
@@ -296,13 +309,13 @@ static void connectMqtt() {
     connected = mqtt.connect(clientId.c_str());
   }
   if (connected) {
-    Serial.println("[mqtt] connected");
+    LOG.println("[mqtt] connected");
     // The controller retains clock/display/<person>, so subscribing is enough
     // to get the current state straight away -- no request needed.
     mqtt.subscribe(config.displayTopic().c_str(), 1);
     publishStatus();
   } else {
-    Serial.printf("[mqtt] failed, rc=%d\n", mqtt.state());
+    LOG.printf("[mqtt] failed, rc=%d\n", mqtt.state());
   }
 }
 
@@ -382,7 +395,7 @@ static void startPortal() {
   });
   portal.begin();
 
-  Serial.printf("[portal] join WiFi \"%s\" and open http://%s/\n",
+  LOG.printf("[portal] join WiFi \"%s\" and open http://%s/\n",
                 ssid.c_str(), WiFi.softAPIP().toString().c_str());
 
   canvas.fillScreen(TFT_BLACK);
@@ -407,20 +420,20 @@ static void connectWifi() {
   WiFi.setAutoReconnect(true);
   WiFi.begin(config.wifiSsid.c_str(), config.wifiPassword.c_str());
 
-  Serial.printf("[wifi] joining %s", config.wifiSsid.c_str());
+  LOG.printf("[wifi] joining %s", config.wifiSsid.c_str());
   const uint32_t deadline = millis() + 20000UL;
   while (WiFi.status() != WL_CONNECTED && millis() < deadline) {
     delay(250);
-    Serial.print(".");
+    LOG.print(".");
   }
-  Serial.println();
+  LOG.println();
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.printf("[wifi] %s, RSSI %d\n", WiFi.localIP().toString().c_str(), WiFi.RSSI());
+    LOG.printf("[wifi] %s, RSSI %d\n", WiFi.localIP().toString().c_str(), WiFi.RSSI());
   } else {
     // Not fatal: keep showing the last state and let WiFi retry in the
     // background. A node that reboots into a setup portal every time the
     // router restarts would be worse than one that waits.
-    Serial.println("[wifi] not connected; will keep retrying");
+    LOG.println("[wifi] not connected; will keep retrying");
   }
 }
 
@@ -443,9 +456,13 @@ static void startOta() {
 }
 
 void setup() {
+#ifdef WITH_MOTORS
+  motors::begin();  // starts UART0 and the stepper task on core 0
+#else
   Serial.begin(115200);
+#endif
   delay(200);
-  Serial.printf("\nWeasley Clock display node %s\n", NODE_FIRMWARE_VERSION);
+  LOG.printf("\nWeasley Clock display node %s\n", NODE_FIRMWARE_VERSION);
 
   display.init();
   display.setRotation(0);
@@ -459,12 +476,12 @@ void setup() {
     display.setTextDatum(middle_center);
     display.setTextColor(COL_BAD);
     display.drawString("out of memory", DISPLAY_WIDTH / 2, DISPLAY_HEIGHT / 2);
-    Serial.println("[display] could not allocate the 240x240 sprite");
+    LOG.println("[display] could not allocate the 240x240 sprite");
     return;
   }
 
   if (!LittleFS.begin(true)) {
-    Serial.println("[fs] LittleFS would not mount");
+    LOG.println("[fs] LittleFS would not mount");
   }
 
   configLoaded = loadConfig();
@@ -474,10 +491,10 @@ void setup() {
 
   loopReady = loopFile.open(LittleFS, config.loopPath.c_str());
   if (loopReady) {
-    Serial.printf("[loop] %u frames, %ux%u at %u fps\n", loopFile.count(),
+    LOG.printf("[loop] %u frames, %ux%u at %u fps\n", loopFile.count(),
                   loopFile.width(), loopFile.height(), loopFile.fps());
   } else {
-    Serial.printf("[loop] %s\n", loopFile.error());
+    LOG.printf("[loop] %s\n", loopFile.error());
   }
 
   if (!configLoaded) {
